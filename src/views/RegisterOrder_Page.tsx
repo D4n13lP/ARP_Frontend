@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import ProductSearchTable from '../components/ProductSearchTable';
-import SaleSummary, { CartItem } from '../components/SaleSummary';
+import SaleSummary, { type CartItem } from '../components/SaleSummary';
 import OrderReview from '../components/OrderReview';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 

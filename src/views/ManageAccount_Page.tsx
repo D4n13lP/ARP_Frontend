@@ -55,7 +55,7 @@ export default function ManageAccount_Page() {
     }
   };
 
-  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixelsInfo: any) => {
+  const onCropComplete = useCallback((_croppedArea: any, croppedAreaPixelsInfo: any) => {
     setCroppedAreaPixels(croppedAreaPixelsInfo);
   }, []);
 

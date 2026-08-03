@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Receipt } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';

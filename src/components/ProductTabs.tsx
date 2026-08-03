@@ -15,7 +15,7 @@ interface ProductTabsProps {
   onTabChange?: (index: number) => void
 }
 
-export default function ProductTabs({ tabs, onSubmit, onBack, currentTabIndex: externalIndex, onTabChange }: ProductTabsProps) {
+export default function ProductTabs({ tabs, onSubmit, currentTabIndex: externalIndex, onTabChange }: ProductTabsProps) {
   const [internalIndex, setInternalIndex] = useState(0)
 
   const isControlled = externalIndex !== undefined && onTabChange !== undefined

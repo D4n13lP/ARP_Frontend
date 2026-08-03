@@ -1,30 +1,15 @@
-import { useState, useEffect } from 'react';
-import { TicketPercent, Search, ChevronDown, ArrowLeft, Info } from 'lucide-react';
-import { useDiscountStore } from '../stores/useDiscountSlice';
+import { useState } from 'react';
+import { TicketPercent, Search, ChevronDown, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 
-// Tipado para los productos que vendrán de tu base de datos
-interface Producto {
-  id: string;
-  nombre: string;
-  categoria: string;
-  stock: number;
-  pendientes: number;
-  estado: string;
-  precio: number;
-}
-
 export default function PromotionSetup_Page() {
-  const { selectedType } = useDiscountStore();
-  
   // --- ESTADOS DE LÓGICA ---
   const [isProductSpecific, setIsProductSpecific] = useState(false);
   const [porcentaje, setPorcentaje] = useState<number | string>('');
   const [busquedaCat, setBusquedaCat] = useState('');
   const [categoriaSel, setCategoriaSel] = useState('');
   const [productoBusqueda, setProductoBusqueda] = useState('');
-  const [productosEnTabla, setProductosEnTabla] = useState<Producto[]>([]);
   const navigate = useNavigate(); // 2. Inicializar la función navigate
 
   // Datos de ejemplo (Simulando Base de Datos)
@@ -37,12 +22,6 @@ export default function PromotionSetup_Page() {
     if (!isNaN(num) && num >= 1 && num <= 100) {
       setPorcentaje(num);
     }
-  };
-
-  // --- CÁLCULO DINÁMICO ---
-  const calcularDescuento = (precio: number) => {
-    const p = typeof porcentaje === 'number' ? porcentaje : 0;
-    return (precio - (precio * (p / 100))).toFixed(2);
   };
 
   return (

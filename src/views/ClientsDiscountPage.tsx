@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { TicketPercent, Search, ChevronDown, ArrowLeft } from 'lucide-react';
+import { TicketPercent, Search, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { useDiscountStore } from '../stores/useDiscountSlice';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 
 interface Producto {
@@ -20,7 +19,6 @@ export default function ClientDiscountSetup_Page() {
   const [clienteNombre, setClienteNombre] = useState('');
   const [isProductSpecific, setIsProductSpecific] = useState(false);
   const [porcentaje, setPorcentaje] = useState<number | string>('');
-  const [categoriaSel, setCategoriaSel] = useState('');
   const navigate = useNavigate(); // 2. Inicializar la función navigate
 
   // Producto de ejemplo para demostrar el cálculo

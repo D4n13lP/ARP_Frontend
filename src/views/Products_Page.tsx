@@ -4,8 +4,6 @@ import logoEmpresa from '../assets/logo_empresa.jpg'; // Importación arriba del
 import { ROUTES } from '../routes';
 
 export default function ProductsMenu_Page() {
-  const LOGO_SRC = "/src/assets/logo_empresa.png"; 
-
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
       

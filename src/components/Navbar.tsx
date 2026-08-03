@@ -257,7 +257,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import menuIcon from "../assets/icons/menu.png";
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ROUTES } from "../routes";
 import { useAppStore } from "../stores/useAppStore";
 type NavHandler = (path: string) => void;
@@ -275,9 +275,7 @@ const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=Usuario&background=16A0
 
 export default function Navbar({
   onNavigate,
-  menuIconSrc,
   avatarSrc,
-  onAvatarClick,
 }: NavbarProps) {
   const routerNavigate = useNavigate();
   const navigate: NavHandler = onNavigate ?? routerNavigate;

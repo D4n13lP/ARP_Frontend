@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Receipt } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 
@@ -54,8 +53,6 @@ const dummyDetail = {
 };
 
 export default function SalesReport_Page() {
-  const navigate = useNavigate();
-
   // --- ESTADOS DE FECHAS ---
   const [fechaInicio, setFechaInicio] = useState({ mm: '', dd: '', aaaa: '' });
   const [fechaFin, setFechaFin] = useState({ mm: '', dd: '', aaaa: '' });
