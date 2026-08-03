@@ -15,6 +15,7 @@ import { linkSupplierProduct } from '../api/suppProd'
 import { createInventory } from '../api/inventory'
 import { getTimeUnits, createTimeUnit } from '../api/timeUnits'
 import { createSalesExpectation } from '../api/salesExpectations'
+import { API_BASE_URL } from '../api/http'
 import type { Product } from '../types'
 
 export default function AddProduct_Page() {
@@ -52,7 +53,7 @@ export default function AddProduct_Page() {
     const cleanupOnUnload = () => {
       if (!completedRef.current && draftRef.current) {
         // best-effort: si se cierra la pestaña, el navegador puede no completar la petición
-        fetch(`/api/products/${draftRef.current.prodCode}`, { method: 'DELETE', keepalive: true }).catch(() => {})
+        fetch(`${API_BASE_URL}/products/${draftRef.current.prodCode}`, { method: 'DELETE', keepalive: true }).catch(() => {})
       }
     }
     window.addEventListener('beforeunload', cleanupOnUnload)

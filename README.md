@@ -11,6 +11,18 @@ Currently, two official plugins are available:
 
 The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
 
+## API Configuration
+
+The frontend reads the backend URL from `VITE_API_URL`.
+
+Example values:
+
+```bash
+VITE_API_URL=https://tu-backend.vercel.app/api
+```
+
+For local development, Vite still proxies `/api` to `http://localhost:3000`.
+
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
