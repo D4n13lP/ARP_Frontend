@@ -152,6 +152,38 @@ export const MetricTableItemSchema = z.object({
 });
 export type MetricTableItem = z.infer<typeof MetricTableItemSchema>;
 
+export const AuthUserSchema = z.object({
+  userID: z.string(),
+  userName: z.string(),
+  email: z.string(),
+  userType: z.enum(["admin", "seller"]),
+  isActive: z.boolean(),
+  isEmailVerified: z.boolean(),
+  recoveryEmail: z.string().nullable().optional(),
+  employeeCode: z.string(),
+  phone: z.string().nullable().optional(),
+  lastLogin: z.coerce.date().nullable().optional(),
+});
+export type AuthUser = z.infer<typeof AuthUserSchema>;
+
+export const LoginResponseSchema = z.object({
+  user: AuthUserSchema,
+  token: z.string(),
+});
+export type LoginResponse = z.infer<typeof LoginResponseSchema>;
+
+export const RegisterResponseSchema = z.object({
+  message: z.string(),
+  userID: z.string(),
+  employeeCode: z.string(),
+});
+export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
+
+export const MessageResponseSchema = z.object({
+  message: z.string(),
+});
+export type MessageResponse = z.infer<typeof MessageResponseSchema>;
+
 export const DashboardSchema = z.object({
   stats: z.object({
     ventas: z.coerce.number(),
