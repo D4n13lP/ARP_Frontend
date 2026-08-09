@@ -7,6 +7,12 @@ export async function getUserPermissions(): Promise<UserPermission[]> {
   return UserPermissionSchema.array().parse(data)
 }
 
+// Cualquier usuario autenticado: los permisos de su propia cuenta.
+export async function getMyPermissions(): Promise<UserPermission[]> {
+  const { data } = await http.get('/user-permissions/me')
+  return UserPermissionSchema.array().parse(data)
+}
+
 export interface UserPermissionUpdate {
   canView?: boolean;
   canCreate?: boolean;

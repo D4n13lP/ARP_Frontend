@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Trash2, UserCheck } from 'lucide-react';
 import { getUsers, deleteUser, promoteUser, demoteUser } from '../api/users';
 import { getModules } from '../api/modules';
 import { getUserPermissions, updateUserPermission } from '../api/userPermissions';
@@ -10,6 +10,7 @@ import { ROUTES } from '../routes';
 import type { AuthUser, Module, UserPermission } from '../types';
 
 export default function OtherAccountSettings_Page() {
+  const navigate = useNavigate();
   const authUser = useAppStore((state) => state.authUser);
 
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -52,6 +53,7 @@ export default function OtherAccountSettings_Page() {
   }
 
   const selectedUser = users.find((u) => u.userID === selectedUserID) ?? null;
+  const pendingCount = users.filter((u) => !u.isAllowed).length;
 
   function permissionFor(userID: string, moduleID: string) {
     return permissions.find((p) => p.userID === userID && p.moduleID === moduleID);
@@ -166,7 +168,25 @@ export default function OtherAccountSettings_Page() {
 
       {/* Tabla de cuentas y permisos individuales */}
       <main className="flex-1 p-6 md:p-10">
-        <h1 className="text-2xl font-semibold text-[#e2694b] mb-1">Configurar cuentas</h1>
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-1">
+          <h1 className="text-2xl font-semibold text-[#e2694b]">Configurar cuentas</h1>
+
+          <button
+            type="button"
+            disabled={pendingCount === 0}
+            onClick={() => navigate(ROUTES.ACCOUNT_PENDING)}
+            title={pendingCount === 0 ? 'No hay cuentas pendientes' : `${pendingCount} cuenta(s) esperando aprobación`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              pendingCount === 0
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-emerald-500 text-white cursor-pointer shadow-lg shadow-emerald-500/60 animate-pulse hover:bg-emerald-600'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            Cuentas pendientes{pendingCount > 0 && ` (${pendingCount})`}
+          </button>
+        </div>
+
         <p className="text-sm text-gray-500 mb-6 max-w-2xl">
           Da click en un usuario para elegirlo y editar sus vistas permitidas. Los permisos son por persona:
           cambiar los de una cuenta no afecta a las demás, aunque compartan el mismo tipo de cuenta.

@@ -5,6 +5,7 @@ import RequireAuth from './layouts/RequireAuth'
 import { ROUTES } from "./routes";
 
 const OtherAccountSettings_Page = lazy(() => import('./views/OtherAccountSettings_Page'))
+const PendingAccounts_Page = lazy(() => import('./views/PendingAccounts_Page'))
 const AddProducts_Page = lazy(() => import('./views/AddProducts_Page'))
 const AddProduct_Page = lazy(() => import('./views/AddProduct_Page'))
 const Clients_Page = lazy(() => import('./views/Clients_Page'))
@@ -61,6 +62,7 @@ export default function AppRouter() {
               <Route index element={<DashboardPage />} />
 
               <Route path="account/switch" element={<OtherAccountSettings_Page />} />
+              <Route path="account/pending" element={<PendingAccounts_Page />} />
               <Route path="retiros" element={<Retiros_Page />} />
               <Route path={ROUTES.PRODUCTS.ADD_PRODUCTS} element={<AddProducts_Page />} />
               <Route path={ROUTES.CLIENTS} element={<Clients_Page />} />

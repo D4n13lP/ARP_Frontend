@@ -48,10 +48,10 @@ export default function SalesMenu_Page() {
             bgColor="bg-[#ffcc33]" 
           />
 
-          <MenuCard 
-            label="Registrar Cuenta destino" 
-            icon={Wallet} 
-            path="/destinationAccount/register" 
+          <MenuCard
+            label="Cuentas de pago"
+            icon={Wallet}
+            path="/destinationAccount/register"
             bgColor="bg-[#5d1209]" // Color café/oscuro de la imagen
           />
           

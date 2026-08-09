@@ -48,6 +48,8 @@ export const ROUTES = {
   },
 
   ACCOUNT: "/account",
+  ACCOUNT_SWITCH: "/account/switch",
+  ACCOUNT_PENDING: "/account/pending",
   DELIVERYMEN: "/deliverymen",
 } as const;
 

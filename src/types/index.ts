@@ -159,9 +159,11 @@ export const AuthUserSchema = z.object({
   userType: z.enum(["admin", "seller"]),
   isActive: z.boolean(),
   isEmailVerified: z.boolean(),
+  isAllowed: z.boolean(),
   recoveryEmail: z.string().nullable().optional(),
   employeeCode: z.string(),
   phone: z.string().nullable().optional(),
+  avatarUrl: z.string().nullable().optional(),
   lastLogin: z.coerce.date().nullable().optional(),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;

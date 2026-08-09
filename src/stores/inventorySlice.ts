@@ -1,4 +1,5 @@
 import { type StateCreator } from 'zustand'
+import type { Product } from '../types'
 
 // Fila de inventario ya "aplanada" para las tablas de Inventory.tsx
 export interface InventoryRow {
@@ -9,6 +10,10 @@ export interface InventoryRow {
   stock: number;
   pendientes: number;
   estado: string;
+  almacen: string;
+  whID: string;
+  tieneDescuento: boolean;
+  product: Product | null;
 }
 
 export interface InventorySlice {
@@ -20,12 +25,15 @@ export interface InventorySlice {
     codigo: string;
     nombre: string;
     categoria: string;
+    descuento: boolean;
+    almacenID: string;
   }
 
   // Acciones
   setProductos: (productos: InventoryRow[]) => void
   setTabActiva: (tab: string) => void
-  setFiltro: (campo: 'codigo' | 'nombre' | 'categoria', valor: string) => void
+  setFiltro: (campo: 'codigo' | 'nombre' | 'categoria' | 'almacenID', valor: string) => void
+  toggleFiltroDescuento: () => void
 }
 
 export const createInventorySlice: StateCreator<InventorySlice> = (set) => ({
@@ -36,6 +44,8 @@ export const createInventorySlice: StateCreator<InventorySlice> = (set) => ({
     codigo: '',
     nombre: '',
     categoria: '',
+    descuento: false,
+    almacenID: '',
   },
 
   setProductos: (productos) => set({ productos }),
@@ -46,6 +56,13 @@ export const createInventorySlice: StateCreator<InventorySlice> = (set) => ({
     filtros: {
       ...state.filtros,
       [campo]: valor
+    }
+  })),
+
+  toggleFiltroDescuento: () => set((state) => ({
+    filtros: {
+      ...state.filtros,
+      descuento: !state.filtros.descuento,
     }
   })),
 })

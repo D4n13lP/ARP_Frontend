@@ -404,7 +404,7 @@ export default function Navbar({
               className="h-10 w-10 rounded-full overflow-hidden ring-2 ring-white/10 hover:ring-white/25 transition cursor-pointer z-[60]"
             >
               <img
-                src={user?.avatarUrl || avatarSrc || DEFAULT_AVATAR}
+                src={authUser?.avatarUrl || avatarSrc || DEFAULT_AVATAR}
                 alt="Perfil"
                 className="h-full w-full object-cover"
               />
@@ -416,7 +416,7 @@ export default function Navbar({
                 <div className="p-6 flex flex-col items-center">
                   <div className="h-24 w-24 rounded-full overflow-hidden ring-1 ring-white/20 mb-4">
                     <img
-                      src={user?.avatarUrl || avatarSrc || DEFAULT_AVATAR}
+                      src={authUser?.avatarUrl || avatarSrc || DEFAULT_AVATAR}
                       alt="Usuario"
                       className="h-full w-full object-cover"
                     />

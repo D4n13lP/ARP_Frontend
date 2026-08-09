@@ -99,7 +99,7 @@ export default function RegisterDestinationAccount_Page() {
         {/* Title Centered with Icon */}
         <div className="flex items-center gap-4 text-[#e2694b]">
           <h1 className="text-4xl md:text-5xl font-normal tracking-tight">
-            Cuenta destinó
+            Cuentas de pago
           </h1>
           <Wallet size={45} strokeWidth={1.5} />
         </div>
