@@ -4,7 +4,7 @@ import Layout from './layouts/Layout'
 import RequireAuth from './layouts/RequireAuth'
 import { ROUTES } from "./routes";
 
-const AccountDisplay_Page = lazy(() => import('./views/AccountDisplay_Page'))
+const OtherAccountSettings_Page = lazy(() => import('./views/OtherAccountSettings_Page'))
 const AddProducts_Page = lazy(() => import('./views/AddProducts_Page'))
 const AddProduct_Page = lazy(() => import('./views/AddProduct_Page'))
 const Clients_Page = lazy(() => import('./views/Clients_Page'))
@@ -60,7 +60,7 @@ export default function AppRouter() {
             <Route element={<Layout />}>
               <Route index element={<DashboardPage />} />
 
-              <Route path="account" element={<AccountDisplay_Page />} />
+              <Route path="account/switch" element={<OtherAccountSettings_Page />} />
               <Route path="retiros" element={<Retiros_Page />} />
               <Route path={ROUTES.PRODUCTS.ADD_PRODUCTS} element={<AddProducts_Page />} />
               <Route path={ROUTES.CLIENTS} element={<Clients_Page />} />

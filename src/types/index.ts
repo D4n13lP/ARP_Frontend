@@ -184,6 +184,37 @@ export const MessageResponseSchema = z.object({
 });
 export type MessageResponse = z.infer<typeof MessageResponseSchema>;
 
+export const ModuleSchema = z.object({
+  moduleID: z.string(),
+  moduleKey: z.string(),
+  moduleName: z.string(),
+});
+export type Module = z.infer<typeof ModuleSchema>;
+
+export const RolePermissionSchema = z.object({
+  permissionID: z.string(),
+  userType: z.enum(["admin", "seller"]),
+  moduleID: z.string(),
+  module: ModuleSchema.nullable().optional(),
+  canView: z.boolean(),
+  canCreate: z.boolean(),
+  canEdit: z.boolean(),
+  canDelete: z.boolean(),
+});
+export type RolePermission = z.infer<typeof RolePermissionSchema>;
+
+export const UserPermissionSchema = z.object({
+  userPermissionID: z.string(),
+  userID: z.string(),
+  moduleID: z.string(),
+  module: ModuleSchema.nullable().optional(),
+  canView: z.boolean(),
+  canCreate: z.boolean(),
+  canEdit: z.boolean(),
+  canDelete: z.boolean(),
+});
+export type UserPermission = z.infer<typeof UserPermissionSchema>;
+
 export const DashboardSchema = z.object({
   stats: z.object({
     ventas: z.coerce.number(),

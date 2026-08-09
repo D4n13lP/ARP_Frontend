@@ -281,6 +281,8 @@ export default function Navbar({
   const navigate: NavHandler = onNavigate ?? routerNavigate;
   
   const user = useAppStore(state => state.user);
+  const authUser = useAppStore(state => state.authUser);
+  const logout = useAppStore(state => state.logout);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(false);
@@ -339,6 +341,12 @@ export default function Navbar({
     setProfileOpen((v) => !v);
     setSalesOpen(false);
     setDrawerOpen(false);
+  }
+
+  function handleLogout() {
+    logout();
+    setProfileOpen(false);
+    navigate(ROUTES.LOGIN);
   }
 
   const navBtn =
@@ -415,26 +423,26 @@ export default function Navbar({
                   </div>
                   
                   <h3 className="text-white text-3xl font-light mb-6">
-                    ¡Hola, <span className="font-normal">{user?.nombreUsuario?.split(' ')[0] || "César"}</span>!        
+                    ¡Hola, <span className="font-normal">{authUser?.userName?.split(' ')[0] || user?.nombreUsuario?.split(' ')[0] || "Usuario"}</span>!
                   </h3>
 
                   <div className="w-full space-y-4">
-                    <button 
+                    <button
                       onClick={() => go("/account/manage")}
                       className="w-full py-2.5 px-4 border-2 border-white text-white rounded-full font-medium transition-all cursor-pointer hover:bg-[#16A085] hover:border-[#16A085]"
                     >
                       Administrar tu cuenta
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => go("/account/switch")}
                       className="w-full py-1 text-gray-300 hover:text-[#16A085] transition-all cursor-pointer block"
                     >
-                      Ver mas cuentas
+                      Configurar una cuenta diferente
                     </button>
 
-                    <button 
-                      onClick={() => { console.log("Logout"); setProfileOpen(false); }}
+                    <button
+                      onClick={handleLogout}
                       className="w-full py-1 text-gray-300 hover:text-[#16A085] transition-all cursor-pointer block"
                     >
                       Cerrar sesión
