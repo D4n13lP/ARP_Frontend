@@ -42,6 +42,7 @@ const WatchProducts_Page = lazy(() => import('./views/WatchProducts_Page'))
 const Retiros_Page = lazy(() => import('./views/Retiros_Page'))
 const Inventory_Page = lazy(() => import('./views/Inventory_Page'))
 const ProductCatalog_Page = lazy(() => import('./views/ProductCatalog_Page'))
+const Warehouses_Page = lazy(() => import('./views/Warehouses_Page'))
 
 export default function AppRouter() {
   return (
@@ -73,6 +74,7 @@ export default function AppRouter() {
               <Route path={ROUTES.DISCOUNTS.CLIENT_DISCOUNT} element={<ClientsDiscountPage />} />
               <Route path={ROUTES.DISCOUNTS.DISCOUNT_ADJUSTMENT} element={<DiscountAdjustmentPage />} />
               <Route path={ROUTES.INVENTORY} element={<Inventory_Page />} />
+              <Route path={ROUTES.WAREHOUSES} element={<Warehouses_Page />} />
               <Route path="account/manage" element={<ManageAccount_Page />} />
               <Route path={ROUTES.ORDERS.ROOT} element={<Orders_Page />} />
               <Route path={ROUTES.ORDERS.REPORT} element={<OrdersReports_Page />} />

@@ -192,8 +192,9 @@ import {
 import { useAppStore } from "../stores/useAppStore";
 import { updateProduct, deleteProduct } from "../api/products";
 import { getCategories, createCategory } from "../api/categories";
+import { getProductUnits, createProductUnit } from "../api/productUnits";
 import { uploadPicture, deletePicture } from "../api/pictures";
-import type { Category, Picture, Product } from "../types";
+import type { Category, Picture, Product, ProductUnit } from "../types";
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#e5e7eb"/><text x="50%" y="50%" font-family="sans-serif" font-size="28" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">Sin imagen</text></svg>'
@@ -216,11 +217,17 @@ export default function ProductModal() {
   const [localPictures, setLocalPictures] = useState<Picture[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryInput, setCategoryInput] = useState('');
+  // Unidad: mismo patrón que categoría — input con lista desplegable de las
+  // unidades ya guardadas, pero también se puede escribir una nueva y se crea
+  // al guardar (ver resolución en handleSave).
+  const [units, setUnits] = useState<ProductUnit[]>([]);
+  const [unitInput, setUnitInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getCategories().then(setCategories);
+    getProductUnits().then(setUnits).catch(() => {});
   }, []);
 
   // Sincronizar datos al abrir
@@ -229,6 +236,7 @@ export default function ProductModal() {
       setFormData(selectedProduct);
       setLocalPictures(selectedProduct.pictures || []);
       setCategoryInput(selectedProduct.category?.categoryName || '');
+      setUnitInput(selectedProduct.unit?.produnitName || '');
       setCurrentImgIndex(0);
       setIsEditing(false);
     }
@@ -294,6 +302,24 @@ export default function ProductModal() {
         }
       }
 
+      // Resolver la unidad escrita: usar la existente por nombre o crear una nueva
+      let produnitID = formData.produnitID ?? null;
+      const trimmedUnit = unitInput.trim();
+      if (trimmedUnit !== (formData.unit?.produnitName || '').trim()) {
+        if (!trimmedUnit) {
+          produnitID = null;
+        } else {
+          const existing = units.find((u) => u.produnitName.trim().toLowerCase() === trimmedUnit.toLowerCase());
+          if (existing) {
+            produnitID = existing.produnitID;
+          } else {
+            const created = await createProductUnit(trimmedUnit);
+            produnitID = created.produnitID;
+            setUnits((prev) => [...prev, created]);
+          }
+        }
+      }
+
       const updated = await updateProduct(formData.prodCode, {
         productName: formData.productName,
         sku: formData.sku,
@@ -302,6 +328,7 @@ export default function ProductModal() {
         lowStock: formData.lowStock,
         description: formData.description,
         categoryID,
+        produnitID,
       });
       const merged = { ...formData, ...updated };
       setFormData(merged);
@@ -434,7 +461,7 @@ export default function ProductModal() {
                         { k: "prodCode", l: "Código de producto:", ed: false, money: false },
                         { k: "sku", l: "SKU:", ed: true, money: false },
                         { k: "category", l: "Categoría:", ed: true, money: false, select: true, display: formData.category?.categoryName || "Sin categoría" },
-                        { k: "unit", l: "Unidad:", ed: false, money: false, display: formData.unit?.produnitName || "---" },
+                        { k: "unit", l: "Unidad:", ed: true, money: false, unitSelect: true, display: formData.unit?.produnitName || "Sin unidad" },
                         { k: "cost", l: "Costo:", ed: true, money: true },
                         { k: "salePrice", l: "Precio de venta:", ed: true, money: true },
                         { k: "lowStock", l: "Stock bajo:", ed: true, money: false },
@@ -447,7 +474,27 @@ export default function ProductModal() {
                             {row.l}
                           </td>
                           <td className="px-6 py-4">
-                            {isEditing && row.ed && row.select ? (
+                            {isEditing && row.ed && row.unitSelect ? (
+                              <>
+                                {/* input con datalist: el desplegable lo dibuja el
+                                    navegador (no lo recorta el scroll de la tarjeta)
+                                    y ya trae su propio scroll cuando hay muchas
+                                    unidades guardadas; además permite escribir una
+                                    unidad nueva que se crea al guardar. */}
+                                <input
+                                  list="productModalUnitsList"
+                                  className="w-full border-b-2 border-emerald-400 outline-none px-1 bg-transparent font-bold text-gray-800"
+                                  value={unitInput}
+                                  onChange={(e) => setUnitInput(e.target.value)}
+                                  placeholder="Escribe o elige una unidad"
+                                />
+                                <datalist id="productModalUnitsList">
+                                  {units.map((u) => (
+                                    <option key={u.produnitID} value={u.produnitName} />
+                                  ))}
+                                </datalist>
+                              </>
+                            ) : isEditing && row.ed && row.select ? (
                               <>
                                 <input
                                   list="productModalCategoriesList"
@@ -549,6 +596,7 @@ export default function ProductModal() {
                     setFormData(selectedProduct);
                     setLocalPictures(selectedProduct.pictures || []);
                     setCategoryInput(selectedProduct.category?.categoryName || '');
+                    setUnitInput(selectedProduct.unit?.produnitName || '');
                   }}
                   className="bg-gray-400 hover:bg-gray-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl transition-all cursor-pointer flex items-center gap-3 uppercase"
                 >

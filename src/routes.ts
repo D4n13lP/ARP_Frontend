@@ -51,6 +51,7 @@ export const ROUTES = {
   ACCOUNT_SWITCH: "/account/switch",
   ACCOUNT_PENDING: "/account/pending",
   DELIVERYMEN: "/deliverymen",
+  WAREHOUSES: "/warehouses",
 } as const;
 
   

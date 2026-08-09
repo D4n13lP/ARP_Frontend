@@ -3,7 +3,7 @@ import { Search, ChevronUp, ChevronDown, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
-import { getInventories, updateInventory } from '../api/inventory';
+import { createInventory, getInventories, updateInventory } from '../api/inventory';
 import { getInventoryAdjustments } from '../api/inventoryAdjustments';
 import { getProducts } from '../api/products';
 import { getCategories } from '../api/categories';
@@ -33,6 +33,10 @@ export default function Inventory() {
   const [confirmChange, setConfirmChange] = useState<{ row: InventoryRow; nextValue: number } | null>(null);
   const [savingQuantity, setSavingQuantity] = useState(false);
 
+  // Cambio de almacén (columna "Almacen" como desplegable)
+  const [confirmWarehouseChange, setConfirmWarehouseChange] = useState<{ row: InventoryRow; nextWhID: string } | null>(null);
+  const [savingWarehouse, setSavingWarehouse] = useState(false);
+
   // Totales para los encabezados "Producto (N)" / "Categoría (N)", y catálogo de almacenes.
   useEffect(() => {
     getProducts().then((data) => setTotalProducts(data.length)).catch(() => {});
@@ -57,10 +61,12 @@ export default function Inventory() {
 
   useEffect(() => {
     if (tabActiva === 'general' || tabActiva === 'almacen') {
-      getInventories()
-        .then((data) => {
-          const rows: InventoryRow[] = data.map((inv) => ({
+      Promise.all([getInventories(), getProducts()])
+        .then(([inventarios, allProducts]) => {
+          const rows: InventoryRow[] = inventarios.map((inv) => ({
             id: inv.inventoryID,
+            inventoryID: inv.inventoryID,
+            prodCode: inv.prodCode,
             codigo: inv.product?.sku || inv.prodCode,
             nombre: inv.product?.productName || '',
             categoria: inv.product?.category?.categoryName || '',
@@ -72,6 +78,30 @@ export default function Inventory() {
             tieneDescuento: !!inv.product?.promo,
             product: inv.product ?? null,
           }));
+
+          // Productos que todavía no tienen ninguna fila de inventario (nunca
+          // se les asignó almacén) — se agregan como filas "virtuales" para
+          // que no desaparezcan de la tabla.
+          const seenProdCodes = new Set(rows.map((r) => r.prodCode));
+          for (const p of allProducts) {
+            if (seenProdCodes.has(p.prodCode)) continue;
+            rows.push({
+              id: p.prodCode,
+              inventoryID: null,
+              prodCode: p.prodCode,
+              codigo: p.sku || p.prodCode,
+              nombre: p.productName,
+              categoria: p.category?.categoryName || '',
+              stock: 0,
+              pendientes: 0,
+              estado: 'Agotado',
+              almacen: '',
+              whID: '',
+              tieneDescuento: !!p.promo,
+              product: p,
+            });
+          }
+
           setProductos(rows);
         })
         .catch((error) => alert(getErrorMessage(error, 'No se pudo cargar el inventario.')));
@@ -135,6 +165,7 @@ export default function Inventory() {
 
   function startEditing(row: InventoryRow) {
     if (!canEditInventory) return;
+    if (!row.inventoryID) return; // sin almacén asignado todavía: hay que asignar uno primero
     setEditingRowID(row.id);
     setEditingValue(String(row.stock));
   }
@@ -158,10 +189,10 @@ export default function Inventory() {
   }
 
   async function handleConfirmQuantityChange() {
-    if (!confirmChange) return;
+    if (!confirmChange || !confirmChange.row.inventoryID) return;
     setSavingQuantity(true);
     try {
-      const updated = await updateInventory(confirmChange.row.id, { quantity: confirmChange.nextValue });
+      const updated = await updateInventory(confirmChange.row.inventoryID, { quantity: confirmChange.nextValue });
       setProductos(productos.map((p) => p.id === confirmChange.row.id
         ? { ...p, stock: updated.quantity, estado: updated.quantity === 0 ? 'Agotado' : 'Disponible' }
         : p));
@@ -172,6 +203,40 @@ export default function Inventory() {
       setConfirmChange(null);
       setEditingRowID(null);
       setEditingValue('');
+    }
+  }
+
+  function requestWarehouseChange(row: InventoryRow, nextWhID: string) {
+    if (!nextWhID || nextWhID === row.whID) return;
+    setConfirmWarehouseChange({ row, nextWhID });
+  }
+
+  async function handleConfirmWarehouseChange() {
+    if (!confirmWarehouseChange) return;
+    const { row, nextWhID } = confirmWarehouseChange;
+    setSavingWarehouse(true);
+    try {
+      const nextWarehouse = warehouses.find((w) => w.whID === nextWhID);
+      if (row.inventoryID) {
+        // Ya tenía almacén asignado: solo cambia el whID — el backend registra
+        // la transferencia automáticamente en el historial.
+        const updated = await updateInventory(row.inventoryID, { whID: nextWhID });
+        setProductos(productos.map((p) => p.id === row.id
+          ? { ...p, whID: updated.whID, almacen: nextWarehouse?.whname || '' }
+          : p));
+      } else {
+        // Fila virtual (producto sin fila de inventario todavía): se crea por
+        // primera vez, sin almacén de origen, así que no cuenta como transferencia.
+        const created = await createInventory({ prodCode: row.prodCode, whID: nextWhID, quantity: 0 });
+        setProductos(productos.map((p) => p.id === row.id
+          ? { ...p, id: created.inventoryID, inventoryID: created.inventoryID, whID: created.whID, almacen: nextWarehouse?.whname || '' }
+          : p));
+      }
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo actualizar el almacén.'));
+    } finally {
+      setSavingWarehouse(false);
+      setConfirmWarehouseChange(null);
     }
   }
 
@@ -196,12 +261,20 @@ export default function Inventory() {
             <h2 className="text-2xl font-normal text-gray-600">General</h2>
           )}
         </div>
-        <button
-          onClick={() => navigate(ROUTES.DELIVERYMEN)}
-          className="bg-[#3ab0e2] text-white px-6 py-1.5 rounded text-sm font-medium hover:bg-sky-600 transition shadow-sm cursor-pointer"
-        >
-          Repartidores
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(ROUTES.WAREHOUSES)}
+            className="bg-[#3ab0e2] text-white px-6 py-1.5 rounded text-sm font-medium hover:bg-sky-600 transition shadow-sm cursor-pointer"
+          >
+            Almacenes
+          </button>
+          <button
+            onClick={() => navigate(ROUTES.DELIVERYMEN)}
+            className="bg-[#3ab0e2] text-white px-6 py-1.5 rounded text-sm font-medium hover:bg-sky-600 transition shadow-sm cursor-pointer"
+          >
+            Repartidores
+          </button>
+        </div>
       </div>
 
       {/* Contenedor Principal */}
@@ -294,9 +367,13 @@ export default function Inventory() {
                         <td className="px-4 border-r border-gray-200">{prod.nombre}</td>
                         <td className="px-4 border-r border-gray-200">{prod.categoria}</td>
                         <td
-                          className={`px-4 border-r border-gray-200 text-center ${canEditInventory && editingRowID !== prod.id ? 'cursor-pointer hover:bg-sky-50' : ''}`}
+                          className={`px-4 border-r border-gray-200 text-center ${canEditInventory && prod.inventoryID && editingRowID !== prod.id ? 'cursor-pointer hover:bg-sky-50' : ''}`}
                           onClick={() => editingRowID !== prod.id && startEditing(prod)}
-                          title={canEditInventory ? 'Click para editar la cantidad' : undefined}
+                          title={
+                            !prod.inventoryID
+                              ? 'Asigna un almacén primero para poder editar la cantidad'
+                              : canEditInventory ? 'Click para editar la cantidad' : undefined
+                          }
                         >
                           {editingRowID === prod.id ? (
                             <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -329,7 +406,24 @@ export default function Inventory() {
                             {prod.estado}
                           </span>
                         </td>
-                        <td className="px-4 border-r border-gray-200">{prod.almacen}</td>
+                        <td className="px-4 border-r border-gray-200">
+                          {canEditInventory ? (
+                            <select
+                              value={prod.whID}
+                              onChange={(e) => requestWarehouseChange(prod, e.target.value)}
+                              disabled={savingWarehouse}
+                              title={!prod.inventoryID ? 'Asignar almacén' : 'Cambiar de almacén'}
+                              className="border border-gray-300 rounded px-2 py-1 text-sm bg-white cursor-pointer focus:border-sky-400 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {!prod.whID && <option value="">Sin asignar</option>}
+                              {warehouses.map((w) => (
+                                <option key={w.whID} value={w.whID}>{w.whname}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            prod.almacen || 'Sin asignar'
+                          )}
+                        </td>
                         <td className="px-4 text-center">
                           <button
                             onClick={() => prod.product && openModal(prod.product)}
@@ -427,6 +521,47 @@ export default function Inventory() {
                 className="bg-[#3ab0e2] hover:bg-sky-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
               >
                 {savingQuantity ? 'Guardando...' : 'Aceptar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmación de cambio de almacén */}
+      {confirmWarehouseChange && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm flex flex-col gap-4 animate-fade-in">
+            <h2 className="text-lg font-semibold text-gray-900">Confirmar cambio de almacén</h2>
+            <p className="text-gray-600 text-sm">
+              {confirmWarehouseChange.row.inventoryID ? (
+                <>
+                  ¿Confirmas mover <span className="font-semibold">{confirmWarehouseChange.row.nombre}</span> de{' '}
+                  <span className="font-semibold">{confirmWarehouseChange.row.almacen || 'Sin asignar'}</span> a{' '}
+                  <span className="font-semibold">{warehouses.find((w) => w.whID === confirmWarehouseChange.nextWhID)?.whname}</span>?
+                  Esto se registrará en el Historial de transferencias.
+                </>
+              ) : (
+                <>
+                  ¿Confirmas asignar <span className="font-semibold">{confirmWarehouseChange.row.nombre}</span> al almacén{' '}
+                  <span className="font-semibold">{warehouses.find((w) => w.whID === confirmWarehouseChange.nextWhID)?.whname}</span>{' '}
+                  con 0 en existencia?
+                </>
+              )}
+            </p>
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                onClick={() => setConfirmWarehouseChange(null)}
+                disabled={savingWarehouse}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmWarehouseChange}
+                disabled={savingWarehouse}
+                className="bg-[#3ab0e2] hover:bg-sky-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {savingWarehouse ? 'Guardando...' : 'Aceptar'}
               </button>
             </div>
           </div>

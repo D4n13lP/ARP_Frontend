@@ -12,9 +12,10 @@ export async function createInventory(payload: { prodCode: string; whID: string;
 }
 
 // Protegido en el backend: admin, o vendedor con canEdit activado para el
-// módulo 'inventory'. Si cambia la cantidad, el backend registra el ajuste
-// automáticamente en el historial (ver InventoryAdjustment).
-export async function updateInventory(inventoryID: string, payload: { quantity?: number; description?: string }): Promise<Inventory> {
+// módulo 'inventory'. Si cambia la cantidad o el almacén (whID), el backend
+// registra el ajuste/transferencia automáticamente en el historial (ver
+// InventoryAdjustment).
+export async function updateInventory(inventoryID: string, payload: { quantity?: number; whID?: string; description?: string }): Promise<Inventory> {
   const { data } = await http.put(`/inventories/${inventoryID}`, payload)
   return InventorySchema.parse(data)
 }

@@ -1,9 +1,13 @@
 import { type StateCreator } from 'zustand'
 import type { Product } from '../types'
 
-// Fila de inventario ya "aplanada" para las tablas de Inventory.tsx
+// Fila de inventario ya "aplanada" para las tablas de Inventory.tsx. Incluye
+// productos SIN ninguna fila de inventario todavía (inventoryID null) — así
+// no desaparecen de la tabla solo por no tener almacén asignado.
 export interface InventoryRow {
-  id: string;
+  id: string; // inventoryID si existe; si no, el prodCode (para la key de React)
+  inventoryID: string | null;
+  prodCode: string;
   codigo: string;
   nombre: string;
   categoria: string;

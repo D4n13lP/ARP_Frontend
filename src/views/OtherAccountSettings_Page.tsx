@@ -18,6 +18,11 @@ export default function OtherAccountSettings_Page() {
   const [permissions, setPermissions] = useState<UserPermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserID, setSelectedUserID] = useState<string | null>(null);
+  // Vista seleccionada en el panel izquierdo (click/toque en el nombre, no en
+  // su checkbox). Mientras haya una seleccionada, las columnas "PERMISO
+  // LECTURA"/"PERMISO EDITAR" de la tabla dejan de ser un toggle en bloque de
+  // TODOS los módulos y pasan a leer/editar el permiso de esta vista puntual.
+  const [selectedModuleID, setSelectedModuleID] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<AuthUser | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,10 +77,14 @@ export default function OtherAccountSettings_Page() {
     }
   }
 
-  async function handleToggleModuleView(userID: string, moduleID: string, next: boolean) {
+  // Lectura o Editar de UN módulo puntual (el seleccionado en el panel
+  // izquierdo) para un usuario — usado por las columnas PERMISO LECTURA /
+  // PERMISO EDITAR de la tabla cuando hay una vista seleccionada; ver
+  // handleToggleBulk para cuando no hay ninguna (todas las vistas a la vez).
+  async function handleToggleModulePermission(userID: string, moduleID: string, field: 'canView' | 'canEdit', next: boolean) {
     setBusy(true);
     try {
-      await updateUserPermission(userID, moduleID, { canView: next });
+      await updateUserPermission(userID, moduleID, { [field]: next });
       await refreshPermissions();
     } catch (error) {
       alert(getErrorMessage(error, 'No se pudo actualizar el permiso.'));
@@ -148,17 +157,31 @@ export default function OtherAccountSettings_Page() {
                 const checked = selectedUser.userType === 'admin'
                   ? true
                   : permissionFor(selectedUser.userID, m.moduleID)?.canView ?? false;
+                const isSelected = selectedModuleID === m.moduleID;
                 return (
-                  <label key={m.moduleID} className="flex items-center justify-between gap-3 text-sm py-2 border-b border-white/10 cursor-pointer">
-                    <span>{m.moduleName}</span>
+                  <div key={m.moduleID} className="flex items-center justify-between gap-3 text-sm py-2 border-b border-white/10">
+                    {/* Nombre de la vista: al click/toque la selecciona (se
+                        pinta de #e35336) para que la tabla de la derecha
+                        empiece a leer/editar el permiso de ESTA vista puntual
+                        en vez del bloque de todas. Ya NO activa el checkbox
+                        (antes estaba envuelto en un <label> y cualquier click
+                        en el texto lo disparaba). */}
+                    <span
+                      onClick={() => setSelectedModuleID((prev) => (prev === m.moduleID ? null : m.moduleID))}
+                      className={`cursor-pointer transition-colors truncate pr-2 ${
+                        isSelected ? 'text-[#e35336] font-semibold' : 'text-white hover:text-sky-400'
+                      }`}
+                    >
+                      {m.moduleName}
+                    </span>
                     <input
                       type="checkbox"
                       checked={checked}
                       disabled={busy || selectedUser.userType === 'admin'}
-                      onChange={(e) => handleToggleModuleView(selectedUser.userID, m.moduleID, e.target.checked)}
-                      className="h-4 w-4 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                      onChange={(e) => handleToggleModulePermission(selectedUser.userID, m.moduleID, 'canView', e.target.checked)}
+                      className="h-4 w-4 accent-emerald-500 cursor-pointer disabled:cursor-not-allowed shrink-0"
                     />
-                  </label>
+                  </div>
                 );
               })}
             </div>
@@ -187,10 +210,21 @@ export default function OtherAccountSettings_Page() {
           </button>
         </div>
 
-        <p className="text-sm text-gray-500 mb-6 max-w-2xl">
+        <p className="text-sm text-gray-500 mb-2 max-w-2xl">
           Da click en un usuario para elegirlo y editar sus vistas permitidas. Los permisos son por persona:
           cambiar los de una cuenta no afecta a las demás, aunque compartan el mismo tipo de cuenta.
         </p>
+
+        {selectedModuleID ? (
+          <p className="text-sm text-[#e35336] mb-6 max-w-2xl">
+            Editando permisos de la vista <span className="font-semibold">{modules.find((m) => m.moduleID === selectedModuleID)?.moduleName}</span>.
+            Click de nuevo sobre esa vista en el panel izquierdo para volver a editar todas las vistas en bloque.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-400 mb-6 max-w-2xl">
+            Sin ninguna vista seleccionada en el panel izquierdo, PERMISO LECTURA/EDITAR activan o desactivan todas las vistas a la vez.
+          </p>
+        )}
 
         {loading ? (
           <p className="text-gray-500">Cargando...</p>
@@ -213,7 +247,7 @@ export default function OtherAccountSettings_Page() {
                   return (
                     <tr
                       key={u.userID}
-                      onClick={() => setSelectedUserID(u.userID)}
+                      onClick={() => { setSelectedUserID(u.userID); setSelectedModuleID(null); }}
                       className={`border-t border-gray-200 cursor-pointer transition-colors ${
                         selected ? 'bg-orange-100 border-l-4 border-l-[#e2694b]' : 'hover:bg-gray-50'
                       }`}
@@ -222,18 +256,30 @@ export default function OtherAccountSettings_Page() {
                       <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={u.userType === 'admin' || userHasAllModules(u.userID, 'canView')}
+                          checked={
+                            u.userType === 'admin' || (selectedModuleID
+                              ? permissionFor(u.userID, selectedModuleID)?.canView ?? false
+                              : userHasAllModules(u.userID, 'canView'))
+                          }
                           disabled={busy || u.userType === 'admin'}
-                          onChange={(e) => handleToggleBulk(u.userID, 'canView', e.target.checked)}
+                          onChange={(e) => (selectedModuleID
+                            ? handleToggleModulePermission(u.userID, selectedModuleID, 'canView', e.target.checked)
+                            : handleToggleBulk(u.userID, 'canView', e.target.checked))}
                           className="h-4 w-4 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
                         />
                       </td>
                       <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={u.userType === 'admin' || userHasAllModules(u.userID, 'canEdit')}
+                          checked={
+                            u.userType === 'admin' || (selectedModuleID
+                              ? permissionFor(u.userID, selectedModuleID)?.canEdit ?? false
+                              : userHasAllModules(u.userID, 'canEdit'))
+                          }
                           disabled={busy || u.userType === 'admin'}
-                          onChange={(e) => handleToggleBulk(u.userID, 'canEdit', e.target.checked)}
+                          onChange={(e) => (selectedModuleID
+                            ? handleToggleModulePermission(u.userID, selectedModuleID, 'canEdit', e.target.checked)
+                            : handleToggleBulk(u.userID, 'canEdit', e.target.checked))}
                           className="h-4 w-4 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
                         />
                       </td>
