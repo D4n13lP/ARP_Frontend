@@ -2,59 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Receipt } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
-import { ROUTES } from '../routes';
-
-// Dummy data for "Reporte pedidos" table
-const dummyOrders = [
-  {
-    folio: '',
-    fechaPedido: '07/24/2025',
-    fechaEntrega: '08/10/2025',
-    estado: 'Entregado',
-    cliente: 'Juan',
-    vendedor: 'Karla',
-    importeTotalFinal: '$ 3,500.00',
-    importeACuenta: '',
-    importePendiente: '',
-    lugarEntrega: '',
-  },
-  {
-    folio: '',
-    fechaPedido: '02/08/2025',
-    fechaEntrega: '08/11/2025',
-    estado: 'Entregado',
-    cliente: 'Cliente no registrado',
-    vendedor: 'César',
-    importeTotalFinal: '$ 1,200.00',
-    importeACuenta: '',
-    importePendiente: '',
-    lugarEntrega: '',
-  },
-  {
-    folio: '',
-    fechaPedido: '12/08/2025',
-    fechaEntrega: '27/08/2025',
-    estado: 'Pendiente',
-    cliente: 'Antonio',
-    vendedor: 'Karla',
-    importeTotalFinal: '$ 4,500.00',
-    importeACuenta: '',
-    importePendiente: '',
-    lugarEntrega: '',
-  },
-  {
-    folio: '',
-    fechaPedido: '23/08/2025',
-    fechaEntrega: '28/08/2025',
-    estado: 'Pendiente',
-    cliente: 'No registrado',
-    vendedor: 'César',
-    importeTotalFinal: '$ 800.00',
-    importeACuenta: '',
-    importePendiente: '',
-    lugarEntrega: '',
-  }
-];
+import { getTransactions } from '../api/transactions';
+import { getErrorMessage } from '../utils/errorMessage';
+import { formatDateOnly, formatDeliveryDate, getEstadoEntregaLabel, getVendedorName, getClienteNombre, getLugarEntrega, getImporteACuenta, formatMoney } from '../utils/orderDisplay';
+import type { Transaction } from '../types';
 
 export default function OrdersReports_Page() {
   const navigate = useNavigate();
@@ -62,53 +13,58 @@ export default function OrdersReports_Page() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reportGenerated, setReportGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [orders, setOrders] = useState<Transaction[]>([]);
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (!startDate || !endDate) {
       alert('Por favor selecciona la fecha de inicio y la fecha de fin.');
       return;
     }
-    
+
     // Validación de rango de fechas
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    if (start > end) {
+    if (startDate > endDate) {
       alert('La fecha de inicio no puede ser mayor que la fecha de fin.');
       return;
     }
 
-    setReportGenerated(true);
+    setGenerating(true);
+    try {
+      const all = await getTransactions({ transType: 'order' });
+      // transactionDate es "YYYY-MM-DD": comparar como texto es seguro y
+      // evita cualquier lío de zona horaria al construir un Date.
+      const enRango = all.filter((o) => o.transactionDate && o.transactionDate >= startDate && o.transactionDate <= endDate);
+      setOrders(enRango);
+      setReportGenerated(true);
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo generar el reporte.'));
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  // Calcula automáticamente la suma de importeTotalFinal
-  const calculateTotal = () => {
-    return dummyOrders.reduce((sum, order) => {
-      const numFormatted = order.importeTotalFinal.replace(/[^0-9.-]+/g, '');
-      return sum + (parseFloat(numFormatted) || 0);
-    }, 0);
-  };
+  const calculateTotal = () => orders.reduce((sum, order) => sum + order.finalAmount, 0);
 
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
-      
+
       {/* Header */}
-      <div className="w-full max-w-7xl mb-8 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem]">
+      <div className="w-full max-w-7xl mb-8 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-20">
         {/* Back Button and Logo (Left) */}
         <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
-          <img 
-            src={logoEmpresa} 
-            alt="Logo Empresa" 
-            className="h-20 w-auto object-contain" 
+          <img
+            src={logoEmpresa}
+            alt="Logo Empresa"
+            className="h-20 w-auto object-contain"
           />
-          <button 
-            onClick={() => navigate(-1)} 
+          <button
+            onClick={() => navigate(-1)}
             className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-6 py-2 rounded shadow-sm transition-colors text-sm font-medium cursor-pointer"
           >
             Atras
           </button>
         </div>
-        
+
         {/* Title Centered with Icon */}
         <div className="flex items-center gap-4 text-[#e2694b]">
           <h1 className="text-4xl md:text-5xl font-normal tracking-tight">
@@ -124,12 +80,12 @@ export default function OrdersReports_Page() {
         </h2>
 
         <div className="flex flex-col md:flex-row items-center md:items-start justify-center gap-12 mb-8 w-full max-w-3xl">
-          
+
           {/* Pickers */}
           <div className="flex flex-col gap-6">
             <div className="flex items-center gap-6">
               <label className="w-12 font-medium text-gray-800">Inicio</label>
-              <input 
+              <input
                 type="date"
                 value={startDate}
                 onChange={(e) => {
@@ -141,7 +97,7 @@ export default function OrdersReports_Page() {
             </div>
             <div className="flex items-center gap-6">
               <label className="w-12 font-medium text-gray-800">Fin</label>
-              <input 
+              <input
                 type="date"
                 value={endDate}
                 onChange={(e) => {
@@ -155,22 +111,22 @@ export default function OrdersReports_Page() {
 
           {/* Action & Stats */}
           <div className="flex flex-col gap-4 mt-2">
-            <button 
+            <button
               onClick={handleGenerateReport}
-              disabled={reportGenerated}
+              disabled={reportGenerated || generating}
               className={`px-8 py-2 rounded text-sm w-fit transition-colors shadow-sm font-medium ${
-                reportGenerated 
-                  ? 'bg-[#a3aac0] text-white cursor-default shadow-none' 
-                  : 'bg-[#3ab0e2] hover:bg-sky-400 text-white cursor-pointer'
+                reportGenerated
+                  ? 'bg-[#a3aac0] text-white cursor-default shadow-none'
+                  : 'bg-[#3ab0e2] hover:bg-sky-400 text-white cursor-pointer disabled:opacity-60'
               }`}
             >
-              Generar reporte
+              {generating ? 'Generando...' : 'Generar reporte'}
             </button>
-            
+
             {reportGenerated && (
               <div className="flex flex-col text-sm text-gray-800 gap-3 mt-4 font-medium">
-                <span>{dummyOrders.length} pedidos en el periodo</span>
-                <span>Importe total del periodo: $ {calculateTotal().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>{orders.length} pedidos en el periodo</span>
+                <span>Importe total del periodo: {formatMoney(calculateTotal())}</span>
               </div>
             )}
           </div>
@@ -196,21 +152,27 @@ export default function OrdersReports_Page() {
                 </tr>
               </thead>
               <tbody>
-                {dummyOrders.map((order, index) => (
-                  <tr key={index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors h-16">
+                {orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="py-8 text-gray-400 italic">
+                      No hay pedidos en ese periodo.
+                    </td>
+                  </tr>
+                ) : orders.map((order) => (
+                  <tr key={order.transactionID} className="border-b border-gray-200 hover:bg-gray-50 transition-colors h-16">
                     <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.folio}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.fechaPedido}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.fechaEntrega}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.estado}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.cliente}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.vendedor}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.importeTotalFinal}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.importeACuenta}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{order.importePendiente}</td>
-                    <td className="px-3 py-3 border-r border-gray-200 align-middle text-xs whitespace-pre-wrap">{order.lugarEntrega}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{formatDateOnly(order.transactionDate)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{formatDeliveryDate(order)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{getEstadoEntregaLabel(order.status)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{getClienteNombre(order)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{getVendedorName(order)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{formatMoney(order.finalAmount)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{formatMoney(getImporteACuenta(order))}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle">{formatMoney(order.outstandingAmount)}</td>
+                    <td className="px-3 py-3 border-r border-gray-200 align-middle text-xs whitespace-pre-wrap">{getLugarEntrega(order)}</td>
                     <td className="px-3 py-3 align-middle">
-                      <button 
-                        onClick={() => navigate(ROUTES.ORDERS.DETAIL)} 
+                      <button
+                        onClick={() => navigate(`/orders/detail/${order.transactionID}`)}
                         className="text-gray-700 hover:text-[#e2694b] text-sm cursor-pointer transition-colors font-medium underline"
                       >
                         Ver detalles

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import piramideSol from '../assets/piramide_sol_monocromatico.svg';
 import { login } from '../api/auth';
@@ -10,6 +10,10 @@ import { ROUTES } from '../routes';
 export default function LoginDisplay_Page() {
   const navigate = useNavigate();
   const setSession = useAppStore((state) => state.setSession);
+  // El interceptor de http.ts manda aquí con ?session=expired cuando el
+  // token venció o dejó de ser válido (ver src/api/http.ts).
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('session') === 'expired';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,6 +54,12 @@ export default function LoginDisplay_Page() {
           <div className="bg-white rounded-md shadow-sm p-3 mb-10 w-full">
             <img src={logoEmpresa} alt="Acabados Rústicos Pirámides" className="w-full h-auto object-contain" />
           </div>
+
+          {sessionExpired && (
+            <div className="w-full -mt-6 mb-6 bg-[#8a2a2a]/10 border border-[#8a2a2a]/30 text-[#7d2222] text-sm rounded-xl px-4 py-3 text-center">
+              Tu sesión expiró o ya no es válida. Inicia sesión de nuevo.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="w-full flex flex-col items-center">
             <div className="w-full flex flex-col gap-5">

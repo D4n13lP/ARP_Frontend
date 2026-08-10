@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { useAppStore } from '../stores/useAppStore'
+import { ROUTES } from '../routes'
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -20,3 +22,23 @@ http.interceptors.request.use((config) => {
   }
   return config
 })
+
+// Sesión muerta (token vencido/inválido — ver authenticateToken en el
+// backend): cierra sesión y manda a Login automáticamente, en vez de dejar
+// al usuario "atascado" viendo solo la alerta de error de esa pantalla.
+// Se distingue de un intento de login fallido (también 401) porque un login
+// nunca manda header Authorization — ahí no hay sesión todavía que cerrar.
+let redirectingToLogin = false
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const hadAuthHeader = Boolean(error?.config?.headers?.Authorization)
+    if (axios.isAxiosError(error) && error.response?.status === 401 && hadAuthHeader && !redirectingToLogin) {
+      redirectingToLogin = true
+      useAppStore.getState().logout()
+      window.location.href = `${ROUTES.LOGIN}?session=expired`
+    }
+    return Promise.reject(error)
+  },
+)

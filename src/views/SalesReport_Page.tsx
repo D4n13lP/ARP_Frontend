@@ -1,69 +1,69 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Receipt } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
+import { getTransactions, getTransactionById } from '../api/transactions';
+import { getErrorMessage } from '../utils/errorMessage';
+import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getClienteNombre, formatMoney } from '../utils/orderDisplay';
+import type { Transaction } from '../types';
 
-const dummySales = [
-  {
-    folio: 'V-001',
-    fechaPedido: '01/04/2026',
-    fechaEntrega: '02/04/2026',
-    estado: 'Pagado',
-    cliente: 'Maria Lopez',
-    vendedor: 'Juan Pérez',
-    importeTotalFinal: '$ 13,920.00',
-  },
-  {
-    folio: 'V-002',
-    fechaPedido: '02/04/2026',
-    fechaEntrega: '03/04/2026',
-    estado: 'Pagado',
-    cliente: 'Carlos Slim',
-    vendedor: 'Ana Martínez',
-    importeTotalFinal: '$ 5,400.00',
-  },
-  {
-    folio: 'V-003',
-    fechaPedido: '03/04/2026',
-    fechaEntrega: '04/04/2026',
-    estado: 'Pendiente',
-    cliente: 'Pedro Torres',
-    vendedor: 'Juan Pérez',
-    importeTotalFinal: '$ 8,300.00',
-  }
-];
+interface DateParts {
+  mm: string;
+  dd: string;
+  aaaa: string;
+}
 
-const dummyDetail = {
-  folio: 'V-001',
-  fechaOrden: '01/04/2026',
-  fechaEntrega: '02/04/2026',
-  cliente: 'Maria Lopez',
-  telefono: '555-123-4567',
-  rfc: 'LOMM901020XYZ',
-  vendedor: 'Juan Pérez',
-  repartidor: 'Pedro Gómez',
-  lugarEntrega: 'Calle 123, Colonia Centro',
-  estadoPago: 'Pagado',
-  productos: [
-    { nombre: 'Maceta grande moderna', cantidad: 2, precio: '$ 450.00', suma: '$ 900.00' },
-    { nombre: 'Pegazulejo', cantidad: 5, precio: '$ 865.00', suma: '$ 4,320.00' },
-    { nombre: 'Block', cantidad: 1, precio: '$ 3,200.00', suma: '$ 3,200.00' },
-    { nombre: 'Talamsa C9', cantidad: 1, precio: '$ 5,500.00', suma: '$ 5,500.00' }
-  ],
-  importeTotal: '$ 13,920.00'
-};
+// Arma "YYYY-MM-DD" a partir de los 3 campos sueltos y valida que sea una
+// fecha real (rechaza cosas como 31 de febrero, que Date normalmente
+// "arregla" corriéndola a marzo en silencio).
+function toISODate(parts: DateParts): string | null {
+  const mm = parts.mm.padStart(2, '0');
+  const dd = parts.dd.padStart(2, '0');
+  const aaaa = parts.aaaa;
+  if (!/^\d{2}$/.test(mm) || !/^\d{2}$/.test(dd) || !/^\d{4}$/.test(aaaa)) return null;
+  const iso = `${aaaa}-${mm}-${dd}`;
+  const check = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(check.getTime())) return null;
+  if (check.getUTCFullYear() !== Number(aaaa) || check.getUTCMonth() + 1 !== Number(mm) || check.getUTCDate() !== Number(dd)) return null;
+  return iso;
+}
 
 export default function SalesReport_Page() {
   // --- ESTADOS DE FECHAS ---
-  const [fechaInicio, setFechaInicio] = useState({ mm: '', dd: '', aaaa: '' });
-  const [fechaFin, setFechaFin] = useState({ mm: '', dd: '', aaaa: '' });
+  const [fechaInicio, setFechaInicio] = useState<DateParts>({ mm: '', dd: '', aaaa: '' });
+  const [fechaFin, setFechaFin] = useState<DateParts>({ mm: '', dd: '', aaaa: '' });
   const [isReporteDia, setIsReporteDia] = useState(false);
 
   // --- ESTADOS DE VISTA Y USUARIO ---
   const [viewState, setViewState] = useState<'form' | 'table' | 'sellers' | 'detail'>('form');
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState('Todos');
+  const [generating, setGenerating] = useState(false);
 
-  // Simulación de carga de usuarios
-  const usuariosDB = ["Todos", "Juan Pérez", "María García", "Carlos López", "Ana Martínez", "Luis Rodríguez", "Elena Beltrán"];
+  // Ventas del periodo ya generado (filtradas por fecha y vendedor).
+  const [sales, setSales] = useState<Transaction[]>([]);
+  // Universo de vendedores para el selector: se saca de las ventas ya
+  // registradas (no hay endpoint de "lista de usuarios" abierto a cualquier
+  // rol con permiso de ver este reporte — GET /users es solo para admin).
+  const [vendedoresDisponibles, setVendedoresDisponibles] = useState<string[]>([]);
+
+  // Detalle de una venta puntual (se pide completo por separado: el listado
+  // no trae renglones/pagos, solo lo necesario para la tabla).
+  const [selectedSale, setSelectedSale] = useState<Transaction | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Al montar, se cargan todas las ventas para armar la lista de vendedores
+  // del selector (independiente del periodo que se vaya a reportar).
+  useEffect(() => {
+    getTransactions({ transType: 'sale' })
+      .then((all) => {
+        const nombres = new Set<string>();
+        for (const sale of all) {
+          const nombre = getVendedorName(sale);
+          if (nombre !== '-') nombres.add(nombre);
+        }
+        setVendedoresDisponibles(Array.from(nombres).sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => {});
+  }, []);
 
   // Efecto para manejar el "Reporte del día"
   useEffect(() => {
@@ -79,8 +79,35 @@ export default function SalesReport_Page() {
     }
   }, [isReporteDia]);
 
-  const handleGenerateReport = () => {
-    setViewState('table');
+  const handleGenerateReport = async () => {
+    const inicioISO = toISODate(fechaInicio);
+    const finISO = toISODate(fechaFin);
+    if (!inicioISO || !finISO) {
+      alert('Ingresa una fecha de inicio y de fin válidas (día, mes y año).');
+      return;
+    }
+    if (inicioISO > finISO) {
+      alert('La fecha de inicio no puede ser mayor que la fecha de fin.');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const all = await getTransactions({ transType: 'sale' });
+      // transactionDate es "YYYY-MM-DD": comparar como texto es seguro y
+      // evita cualquier lío de zona horaria al construir un Date.
+      const enRango = all.filter((sale) => {
+        if (!sale.transactionDate || sale.transactionDate < inicioISO || sale.transactionDate > finISO) return false;
+        if (vendedorSeleccionado === 'Todos') return true;
+        return getVendedorName(sale) === vendedorSeleccionado;
+      });
+      setSales(enRango);
+      setViewState('table');
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo generar el reporte.'));
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleReset = () => {
@@ -89,10 +116,20 @@ export default function SalesReport_Page() {
     setFechaFin({ mm: '', dd: '', aaaa: '' });
     setIsReporteDia(false);
     setVendedorSeleccionado('Todos');
+    setSales([]);
   };
 
-  const handleViewDetail = () => {
-    setViewState('detail');
+  const handleViewDetail = async (transactionID: string) => {
+    setLoadingDetail(true);
+    try {
+      const data = await getTransactionById(transactionID);
+      setSelectedSale(data);
+      setViewState('detail');
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo cargar el detalle de la venta.'));
+    } finally {
+      setLoadingDetail(false);
+    }
   };
 
   const handleViewSellers = () => {
@@ -101,27 +138,23 @@ export default function SalesReport_Page() {
 
   // Calcular importe total de ventas del periodo actual
   const calcularTotalPeriodo = () => {
-    return dummySales.reduce((acc, sale) => {
-      const numericVal = parseFloat(sale.importeTotalFinal.replace(/[^0-9.-]+/g, ''));
-      return acc + (isNaN(numericVal) ? 0 : numericVal);
-    }, 0);
+    return sales.reduce((acc, sale) => acc + sale.finalAmount, 0);
   };
 
-  // Calcular top vendedores (esto normalmente lo harías con la BD)
+  // Top vendedores del periodo ya generado (mismas ventas que se ven en la tabla).
   const getTopVendedores = () => {
     const sumas: Record<string, number> = {};
-    dummySales.forEach(sale => {
-      const val = parseFloat(sale.importeTotalFinal.replace(/[^0-9.-]+/g, ''));
-      sumas[sale.vendedor] = (sumas[sale.vendedor] || 0) + val;
+    sales.forEach((sale) => {
+      const vendedor = getVendedorName(sale);
+      sumas[vendedor] = (sumas[vendedor] || 0) + sale.finalAmount;
     });
 
     const top = Object.entries(sumas).map(([vendedor, total]) => ({ vendedor, total }));
     top.sort((a, b) => b.total - a.total);
-    // Agregamos index natural
     return top.map((item, index) => ({
       posicion: index + 1,
       vendedor: item.vendedor,
-      totalFormat: `$ ${item.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      totalFormat: formatMoney(item.total),
     }));
   };
 
@@ -129,7 +162,7 @@ export default function SalesReport_Page() {
     return (
       <div className="min-h-screen bg-white flex flex-col font-sans animate-fade-in p-6 md:p-10">
         {/* HEADER DETALLE DE VENTA */}
-        <header className="relative py-6 mb-8 border-b border-gray-200 flex items-center justify-center min-h-[5rem]">
+        <header className="relative py-6 mb-8 border-b border-gray-200 flex items-center justify-center min-h-20">
           <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
             <img
               src={logoEmpresa}
@@ -145,19 +178,22 @@ export default function SalesReport_Page() {
           </div>
         </header>
 
+        {!selectedSale ? (
+          <p className="text-center text-gray-500">Cargando...</p>
+        ) : (
         <main className="flex-1 w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-10 mt-6">
           {/* Columna Izquierda: Información */}
           <div className="flex flex-col gap-5 text-sm md:text-base text-gray-800 w-full md:w-1/3">
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Folio:</span> <span>{dummyDetail.folio}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Fecha de orden:</span> <span>{dummyDetail.fechaOrden}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Fecha de entrega:</span> <span>{dummyDetail.fechaEntrega}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Cliente:</span> <span>{dummyDetail.cliente}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Teléfono Cliente:</span> <span>{dummyDetail.telefono}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">RFC Cliente:</span> <span>{dummyDetail.rfc}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Vendedor:</span> <span>{dummyDetail.vendedor}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Repartidor:</span> <span>{dummyDetail.repartidor}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Lugar de entrega:</span> <span>{dummyDetail.lugarEntrega}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4 mt-4"><span className="font-medium w-36">Estado del pago:</span> <span>{dummyDetail.estadoPago}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Folio:</span> <span>{selectedSale.folio}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Fecha de orden:</span> <span>{formatDateOnly(selectedSale.transactionDate)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Fecha de entrega:</span> <span>{formatDeliveryDate(selectedSale)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Cliente:</span> <span>{getClienteNombre(selectedSale)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Teléfono Cliente:</span> <span>{selectedSale.client?.clientPhone1 || '-'}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">RFC Cliente:</span> <span>{selectedSale.client?.RFC || '-'}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Vendedor:</span> <span>{getVendedorName(selectedSale)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Repartidor:</span> <span>{getRepartidorName(selectedSale)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Lugar de entrega:</span> <span>{getLugarEntrega(selectedSale)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4 mt-4"><span className="font-medium w-36">Estado del pago:</span> <span>{selectedSale.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}</span></div>
           </div>
 
           {/* Columna Derecha: Tabla de productos */}
@@ -173,30 +209,35 @@ export default function SalesReport_Page() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dummyDetail.productos.map((prod, i) => (
-                    <tr key={i} className="border-b border-gray-200">
-                      <td className="py-3 px-4 border-r border-gray-200">{prod.nombre}</td>
-                      <td className="py-3 px-4 border-r border-gray-200">{prod.cantidad}</td>
-                      <td className="py-3 px-4 border-r border-gray-200">{prod.precio}</td>
-                      <td className="py-3 px-4">{prod.suma}</td>
+                  {selectedSale.details && selectedSale.details.length > 0 ? selectedSale.details.map((item) => (
+                    <tr key={item.transDetailID} className="border-b border-gray-200">
+                      <td className="py-3 px-4 border-r border-gray-200">{item.product?.productName}</td>
+                      <td className="py-3 px-4 border-r border-gray-200">{item.quantity}</td>
+                      <td className="py-3 px-4 border-r border-gray-200">{formatMoney(item.unitPrice)}</td>
+                      <td className="py-3 px-4">{formatMoney(item.subtotal)}</td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="py-4 text-gray-400 italic">Sin productos registrados.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-            
+
             <div className="mt-8 text-xl font-medium text-gray-800 self-end mr-4">
-              Importe total {dummyDetail.importeTotal}
+              Importe total {formatMoney(selectedSale.finalAmount)}
             </div>
 
-            <button 
-              onClick={() => setViewState('form')}
+            <button
+              onClick={() => { setSelectedSale(null); setViewState('table'); }}
               className="mt-20 bg-[#3ab0e2] hover:bg-sky-400 text-white px-10 py-2 rounded shadow transition-colors cursor-pointer self-end"
             >
               Salir
             </button>
           </div>
         </main>
+        )}
       </div>
     );
   }
@@ -205,7 +246,7 @@ export default function SalesReport_Page() {
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans animate-fade-in p-6 md:p-10">
       {/* HEADER REPORTE DE VENTAS */}
-      <header className="relative py-6 mb-8 border-b border-gray-200 flex items-center justify-center min-h-[5rem]">
+      <header className="relative py-6 mb-8 border-b border-gray-200 flex items-center justify-center min-h-20">
         <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
           <img
             src={logoEmpresa}
@@ -222,19 +263,19 @@ export default function SalesReport_Page() {
       </header>
 
       <main className="flex-1 w-full max-w-5xl mx-auto flex flex-col items-center">
-        
+
         {/* TÍTULO CENTRAL */}
         <h2 className="text-xl md:text-2xl text-gray-800 font-medium text-center mb-8">
-          {viewState === 'form' 
-            ? 'Selecciona una periodo para generar reporte' 
-            : viewState === 'sellers' 
+          {viewState === 'form'
+            ? 'Selecciona una periodo para generar reporte'
+            : viewState === 'sellers'
               ? 'Mejores vendedores del periodo'
               : 'Ventas del periodo'}
         </h2>
 
         {/* CONTENEDOR FECHAS Y BOTONES */}
         <div className={`w-full flex ${viewState === 'table' || viewState === 'sellers' ? 'justify-between items-center px-10 max-w-4xl' : 'flex-col items-center gap-6'}`}>
-          
+
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
               <span className="w-12 font-medium text-gray-800">Inicio</span>
@@ -279,8 +320,8 @@ export default function SalesReport_Page() {
           <div className="w-full flex flex-col items-center mt-4">
             <div className="flex items-center justify-center gap-4 py-4 w-full">
               <span className="text-xl text-gray-800">Reporte del dia</span>
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 className="w-5 h-5 accent-[#3ab0e2] cursor-pointer"
                 checked={isReporteDia}
                 onChange={(e) => setIsReporteDia(e.target.checked)}
@@ -289,13 +330,14 @@ export default function SalesReport_Page() {
 
             <div className="space-y-4 flex flex-col items-center w-full mt-4">
               <h3 className="text-xl text-gray-800 text-center">Selecciona un vendedor</h3>
-              <select 
+              <select
                 className="w-64 p-2 border border-gray-300 rounded outline-none focus:border-[#3ab0e2] bg-white cursor-pointer"
                 value={vendedorSeleccionado}
                 onChange={(e) => setVendedorSeleccionado(e.target.value)}
               >
-                {usuariosDB.map((user) => (
-                  <option key={user} value={user}>{user}</option>
+                <option value="Todos">Todos</option>
+                {vendedoresDisponibles.map((nombre) => (
+                  <option key={nombre} value={nombre}>{nombre}</option>
                 ))}
               </select>
             </div>
@@ -303,9 +345,10 @@ export default function SalesReport_Page() {
             <div className="flex justify-center pt-10 w-full mb-10">
               <button
                 onClick={handleGenerateReport}
-                className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-8 py-2 rounded shadow transition-colors font-medium cursor-pointer"
+                disabled={generating}
+                className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-8 py-2 rounded shadow transition-colors font-medium cursor-pointer disabled:opacity-60"
               >
-                Generar reporte
+                {generating ? 'Generando...' : 'Generar reporte'}
               </button>
             </div>
           </div>
@@ -328,19 +371,26 @@ export default function SalesReport_Page() {
                 </tr>
               </thead>
               <tbody>
-                {dummySales.map((sale, index) => (
-                  <tr key={index} className="border-b border-gray-200 bg-white hover:bg-gray-50 transition-colors h-14">
+                {sales.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-gray-400 italic">
+                      No hay ventas en ese periodo.
+                    </td>
+                  </tr>
+                ) : sales.map((sale) => (
+                  <tr key={sale.transactionID} className="border-b border-gray-200 bg-white hover:bg-gray-50 transition-colors h-14">
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.folio}</td>
-                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.fechaPedido}</td>
-                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.fechaEntrega}</td>
-                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.estado}</td>
-                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.cliente}</td>
-                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.vendedor}</td>
-                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.importeTotalFinal}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{formatDateOnly(sale.transactionDate)}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{formatDeliveryDate(sale)}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{getClienteNombre(sale)}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{getVendedorName(sale)}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{formatMoney(sale.finalAmount)}</td>
                     <td className="px-3 py-2 align-middle">
-                      <button 
-                        onClick={handleViewDetail}
-                        className="text-gray-700 hover:text-[#e2694b] text-sm cursor-pointer transition-colors font-medium underline"
+                      <button
+                        onClick={() => handleViewDetail(sale.transactionID)}
+                        disabled={loadingDetail}
+                        className="text-gray-700 hover:text-[#e2694b] text-sm cursor-pointer transition-colors font-medium underline disabled:opacity-50"
                       >
                         Ver detalle
                       </button>
@@ -349,13 +399,13 @@ export default function SalesReport_Page() {
                 ))}
               </tbody>
             </table>
-            
+
             {/* SUMA DEL PERIODO */}
             <div className="w-full flex justify-end mt-6 pr-4">
               <div className="flex gap-4 items-center">
                 <span className="text-gray-700 font-medium text-lg">Total de ventas del periodo:</span>
                 <span className="text-xl font-semibold text-gray-800">
-                  $ {calcularTotalPeriodo().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatMoney(calcularTotalPeriodo())}
                 </span>
               </div>
             </div>
@@ -374,8 +424,14 @@ export default function SalesReport_Page() {
                 </tr>
               </thead>
               <tbody>
-                {getTopVendedores().map((vendedor, index) => (
-                  <tr key={index} className="border-b border-gray-200 bg-white hover:bg-gray-50 transition-colors h-14">
+                {getTopVendedores().length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-gray-400 italic">
+                      No hay ventas en ese periodo.
+                    </td>
+                  </tr>
+                ) : getTopVendedores().map((vendedor) => (
+                  <tr key={vendedor.vendedor} className="border-b border-gray-200 bg-white hover:bg-gray-50 transition-colors h-14">
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{vendedor.posicion}</td>
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{vendedor.vendedor}</td>
                     <td className="px-3 py-2 align-middle font-medium">{vendedor.totalFormat}</td>

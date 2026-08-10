@@ -19,3 +19,19 @@ export async function updateInventory(inventoryID: string, payload: { quantity?:
   const { data } = await http.put(`/inventories/${inventoryID}`, payload)
   return InventorySchema.parse(data)
 }
+
+// Mueve stock de un producto hacia OTRO almacén (a diferencia de updateInventory,
+// que reasigna toda la fila). mode 'transfer' resta de sourceWhID y suma en
+// destinationWhID (queda en Historial de transferencias); mode 'ingresar' solo
+// suma en destinationWhID, sin tocar ningún origen (queda en Historial de
+// ajustes). sourceWhID puede ir null si el producto todavía no tenía almacén
+// asignado (fila "virtual" en la tabla) — ahí solo 'ingresar' tiene sentido.
+export async function transferInventory(payload: {
+  prodCode: string;
+  sourceWhID: string | null;
+  destinationWhID: string;
+  quantity: number;
+  mode: 'transfer' | 'ingresar';
+}): Promise<void> {
+  await http.post('/inventories/transfer', payload)
+}

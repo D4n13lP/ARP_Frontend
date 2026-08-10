@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, ChevronUp, ChevronDown, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
-import { createInventory, getInventories, updateInventory } from '../api/inventory';
+import { getInventories, updateInventory, transferInventory } from '../api/inventory';
 import { getInventoryAdjustments } from '../api/inventoryAdjustments';
 import { getProducts } from '../api/products';
 import { getCategories } from '../api/categories';
 import { getWarehouses } from '../api/warehouses';
 import { getMyPermissions } from '../api/userPermissions';
 import { getErrorMessage } from '../utils/errorMessage';
+import { formatDateTimeMX } from '../utils/formatDate';
 import ProductModal from './ProductModal';
 import type { InventoryRow } from '../stores/inventorySlice';
 import type { InventoryAdjustment, Warehouse } from '../types';
@@ -33,9 +34,35 @@ export default function Inventory() {
   const [confirmChange, setConfirmChange] = useState<{ row: InventoryRow; nextValue: number } | null>(null);
   const [savingQuantity, setSavingQuantity] = useState(false);
 
-  // Cambio de almacén (columna "Almacen" como desplegable)
-  const [confirmWarehouseChange, setConfirmWarehouseChange] = useState<{ row: InventoryRow; nextWhID: string } | null>(null);
+  // Cambio de almacén (columna "Almacen" como desplegable) — flujo en dos pasos:
+  // 1) elegir Transferir/Ingresar + cantidad, 2) confirmar (modal ya existente).
+  const [warehouseModeStep, setWarehouseModeStep] = useState<{ row: InventoryRow; nextWhID: string } | null>(null);
+  const [warehouseQtyInput, setWarehouseQtyInput] = useState('');
+  const [confirmWarehouseChange, setConfirmWarehouseChange] = useState<{
+    row: InventoryRow; nextWhID: string; mode: 'transfer' | 'ingresar'; quantity: number;
+  } | null>(null);
   const [savingWarehouse, setSavingWarehouse] = useState(false);
+
+  // Orden de la tabla al hacer click en un encabezado (flechas arriba/abajo).
+  // Un solo estado para las 4 pestañas: cada una tiene sus propias columnas
+  // (keys distintas), así que no chocan entre sí; se reinicia al cambiar de pestaña.
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  useEffect(() => {
+    setSortKey(null);
+    setSortDir('asc');
+  }, [tabActiva]);
+
+  function handleSort(key: string) {
+    if (key === 'opciones') return; // esa columna no tiene datos que ordenar
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   // Totales para los encabezados "Producto (N)" / "Categoría (N)", y catálogo de almacenes.
   useEffect(() => {
@@ -59,52 +86,60 @@ export default function Inventory() {
       .catch(() => setCanEditInventory(false));
   }, [authUser?.userType]);
 
+  // Extraído del efecto de abajo para poder recargar la tabla después de
+  // transferir/ingresar stock (esas acciones pueden crear o modificar HASTA
+  // dos filas de inventario a la vez — la de origen y la de destino — así
+  // que es más simple/confiable volver a pedir todo que parchear a mano).
+  const reloadInventory = useCallback(() => {
+    return Promise.all([getInventories(), getProducts()])
+      .then(([inventarios, allProducts]) => {
+        const rows: InventoryRow[] = inventarios.map((inv) => ({
+          id: inv.inventoryID,
+          inventoryID: inv.inventoryID,
+          prodCode: inv.prodCode,
+          codigo: inv.product?.sku || inv.prodCode,
+          nombre: inv.product?.productName || '',
+          categoria: inv.product?.category?.categoryName || '',
+          stock: inv.quantity,
+          pendientes: 0,
+          estado: inv.quantity === 0 ? 'Agotado' : 'Disponible',
+          almacen: inv.warehouse?.whname || '',
+          whID: inv.whID,
+          tieneDescuento: !!inv.product?.promo,
+          product: inv.product ?? null,
+        }));
+
+        // Productos que todavía no tienen ninguna fila de inventario (nunca
+        // se les asignó almacén) — se agregan como filas "virtuales" para
+        // que no desaparezcan de la tabla.
+        const seenProdCodes = new Set(rows.map((r) => r.prodCode));
+        for (const p of allProducts) {
+          if (seenProdCodes.has(p.prodCode)) continue;
+          rows.push({
+            id: p.prodCode,
+            inventoryID: null,
+            prodCode: p.prodCode,
+            codigo: p.sku || p.prodCode,
+            nombre: p.productName,
+            categoria: p.category?.categoryName || '',
+            stock: 0,
+            pendientes: 0,
+            estado: 'Agotado',
+            almacen: '',
+            whID: '',
+            tieneDescuento: !!p.promo,
+            product: p,
+          });
+        }
+
+        setProductos(rows);
+      })
+      .catch((error) => alert(getErrorMessage(error, 'No se pudo cargar el inventario.')));
+  }, [setProductos]);
+
   useEffect(() => {
     if (tabActiva === 'general' || tabActiva === 'almacen') {
-      Promise.all([getInventories(), getProducts()])
-        .then(([inventarios, allProducts]) => {
-          const rows: InventoryRow[] = inventarios.map((inv) => ({
-            id: inv.inventoryID,
-            inventoryID: inv.inventoryID,
-            prodCode: inv.prodCode,
-            codigo: inv.product?.sku || inv.prodCode,
-            nombre: inv.product?.productName || '',
-            categoria: inv.product?.category?.categoryName || '',
-            stock: inv.quantity,
-            pendientes: 0,
-            estado: inv.quantity === 0 ? 'Agotado' : 'Disponible',
-            almacen: inv.warehouse?.whname || '',
-            whID: inv.whID,
-            tieneDescuento: !!inv.product?.promo,
-            product: inv.product ?? null,
-          }));
-
-          // Productos que todavía no tienen ninguna fila de inventario (nunca
-          // se les asignó almacén) — se agregan como filas "virtuales" para
-          // que no desaparezcan de la tabla.
-          const seenProdCodes = new Set(rows.map((r) => r.prodCode));
-          for (const p of allProducts) {
-            if (seenProdCodes.has(p.prodCode)) continue;
-            rows.push({
-              id: p.prodCode,
-              inventoryID: null,
-              prodCode: p.prodCode,
-              codigo: p.sku || p.prodCode,
-              nombre: p.productName,
-              categoria: p.category?.categoryName || '',
-              stock: 0,
-              pendientes: 0,
-              estado: 'Agotado',
-              almacen: '',
-              whID: '',
-              tieneDescuento: !!p.promo,
-              product: p,
-            });
-          }
-
-          setProductos(rows);
-        })
-        .catch((error) => alert(getErrorMessage(error, 'No se pudo cargar el inventario.')));
+      reloadInventory();
     } else {
       getInventoryAdjustments()
         .then((data) => {
@@ -112,15 +147,78 @@ export default function Inventory() {
         })
         .catch((error) => alert(getErrorMessage(error, 'No se pudo cargar el historial.')));
     }
-  }, [tabActiva, setProductos]);
+  }, [tabActiva, reloadInventory]);
 
-  const productosFiltrados = productos.filter((p) =>
-    p.codigo.toLowerCase().includes(filtros.codigo.toLowerCase()) &&
-    p.nombre.toLowerCase().includes(filtros.nombre.toLowerCase()) &&
-    p.categoria.toLowerCase().includes(filtros.categoria.toLowerCase()) &&
-    (!filtros.descuento || p.tieneDescuento) &&
-    (tabActiva !== 'almacen' || !filtros.almacenID || p.whID === filtros.almacenID)
-  );
+  const productosFiltrados = productos.filter((p) => {
+    const codigoBusqueda = filtros.codigo.toLowerCase();
+    // El campo "Código" busca en el SKU y también en la llave primaria del
+    // producto (prodCode) — así funciona aunque el producto no tenga SKU, o
+    // aunque se busque directamente por su ID.
+    const coincideCodigo = !codigoBusqueda
+      || p.codigo.toLowerCase().includes(codigoBusqueda)
+      || p.prodCode.toLowerCase().includes(codigoBusqueda);
+    return coincideCodigo &&
+      p.nombre.toLowerCase().includes(filtros.nombre.toLowerCase()) &&
+      p.categoria.toLowerCase().includes(filtros.categoria.toLowerCase()) &&
+      (!filtros.descuento || p.tieneDescuento) &&
+      (tabActiva !== 'almacen' || !filtros.almacenID || p.whID === filtros.almacenID);
+  });
+
+  // Valor comparable de cada columna de la tabla de stock (general/almacen).
+  // "estado" no se ordena alfabéticamente: Disponible siempre queda antes que
+  // Agotado en ascendente, y al revés en descendente.
+  function getStockSortValue(row: InventoryRow, key: string): string | number {
+    switch (key) {
+      case 'nombre': return row.nombre.toLowerCase();
+      case 'categoria': return row.categoria.toLowerCase();
+      case 'stock': return row.stock;
+      case 'pendientes': return row.pendientes;
+      case 'estado': return row.estado === 'Disponible' ? 0 : 1;
+      case 'almacen': return row.almacen.toLowerCase();
+      default: return '';
+    }
+  }
+
+  const productosOrdenados = useMemo(() => {
+    if (!sortKey) return productosFiltrados;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...productosFiltrados].sort((a, b) => {
+      const va = getStockSortValue(a, sortKey);
+      const vb = getStockSortValue(b, sortKey);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }, [productosFiltrados, sortKey, sortDir]);
+
+  // Igual que arriba, pero para las columnas de Historial de ajustes / transferencias.
+  function getAdjustmentSortValue(adj: InventoryAdjustment, key: string): string | number {
+    switch (key) {
+      case 'producto': return (adj.product?.productName || '').toLowerCase();
+      case 'categoria': return (adj.product?.category?.categoryName || '').toLowerCase();
+      case 'disponibleAntes': return adj.availableBefore ?? 0;
+      case 'pendienteAntes': return adj.outstandingDeliveryBefore ?? 0;
+      case 'cantidadAjustada': return adj.quantityTransferred ?? 0;
+      case 'fechaAjuste': return adj.adjustmentDate ? new Date(adj.adjustmentDate).getTime() : 0;
+      case 'almacenOrigen': return (adj.sourceWarehouse?.whname || '').toLowerCase();
+      case 'almacenDestino': return (adj.destinationWarehouse?.whname || '').toLowerCase();
+      case 'cantidad': return adj.quantityTransferred ?? 0;
+      case 'fechaTransferencia': return adj.adjustmentDate ? new Date(adj.adjustmentDate).getTime() : 0;
+      default: return '';
+    }
+  }
+
+  const adjustmentsOrdenados = useMemo(() => {
+    if (!sortKey) return adjustments;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...adjustments].sort((a, b) => {
+      const va = getAdjustmentSortValue(a, sortKey);
+      const vb = getAdjustmentSortValue(b, sortKey);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }, [adjustments, sortKey, sortDir]);
 
   const tabs = [
     { id: 'general', label: 'Listado general del Stock' },
@@ -206,34 +304,54 @@ export default function Inventory() {
     }
   }
 
+  // Paso 1: se dispara al elegir un almacén distinto en el desplegable — abre
+  // el modal de Transferir/Ingresar + cantidad (NO cambia nada todavía).
   function requestWarehouseChange(row: InventoryRow, nextWhID: string) {
     if (!nextWhID || nextWhID === row.whID) return;
-    setConfirmWarehouseChange({ row, nextWhID });
+    setWarehouseModeStep({ row, nextWhID });
+    setWarehouseQtyInput('');
   }
 
+  function cancelWarehouseModeStep() {
+    setWarehouseModeStep(null);
+    setWarehouseQtyInput('');
+  }
+
+  // Valida la cantidad (entero >= 1; para 'transfer' además <= stock actual)
+  // y pasa al paso 2 (el modal de confirmación ya existente).
+  function handlePickWarehouseMode(mode: 'transfer' | 'ingresar') {
+    if (!warehouseModeStep) return;
+    const qty = Number(warehouseQtyInput);
+    if (!Number.isInteger(qty) || qty < 1) {
+      alert('Escribe una cantidad válida (un entero de 1 o más).');
+      return;
+    }
+    if (mode === 'transfer' && qty > warehouseModeStep.row.stock) {
+      alert(`No puedes transferir más de ${warehouseModeStep.row.stock} unidades — es lo disponible en este almacén.`);
+      return;
+    }
+    setConfirmWarehouseChange({ row: warehouseModeStep.row, nextWhID: warehouseModeStep.nextWhID, mode, quantity: qty });
+    setWarehouseModeStep(null);
+  }
+
+  // Paso 2: confirmación final — transfiere o ingresa según lo elegido en el paso 1.
   async function handleConfirmWarehouseChange() {
     if (!confirmWarehouseChange) return;
-    const { row, nextWhID } = confirmWarehouseChange;
+    const { row, nextWhID, mode, quantity } = confirmWarehouseChange;
     setSavingWarehouse(true);
     try {
-      const nextWarehouse = warehouses.find((w) => w.whID === nextWhID);
-      if (row.inventoryID) {
-        // Ya tenía almacén asignado: solo cambia el whID — el backend registra
-        // la transferencia automáticamente en el historial.
-        const updated = await updateInventory(row.inventoryID, { whID: nextWhID });
-        setProductos(productos.map((p) => p.id === row.id
-          ? { ...p, whID: updated.whID, almacen: nextWarehouse?.whname || '' }
-          : p));
-      } else {
-        // Fila virtual (producto sin fila de inventario todavía): se crea por
-        // primera vez, sin almacén de origen, así que no cuenta como transferencia.
-        const created = await createInventory({ prodCode: row.prodCode, whID: nextWhID, quantity: 0 });
-        setProductos(productos.map((p) => p.id === row.id
-          ? { ...p, id: created.inventoryID, inventoryID: created.inventoryID, whID: created.whID, almacen: nextWarehouse?.whname || '' }
-          : p));
-      }
+      await transferInventory({
+        prodCode: row.prodCode,
+        sourceWhID: row.whID || null,
+        destinationWhID: nextWhID,
+        quantity,
+        mode,
+      });
+      // Una transferencia toca hasta dos filas (origen y destino) y un ingreso
+      // puede crear una fila nueva — más simple/confiable recargar todo.
+      await reloadInventory();
     } catch (error) {
-      alert(getErrorMessage(error, 'No se pudo actualizar el almacén.'));
+      alert(getErrorMessage(error, 'No se pudo procesar el movimiento de almacén.'));
     } finally {
       setSavingWarehouse(false);
       setConfirmWarehouseChange(null);
@@ -303,7 +421,7 @@ export default function Inventory() {
             <div className="flex flex-wrap gap-4 mb-8 items-center">
               <input
                 type="text"
-                placeholder="Código"
+                placeholder="Código o ID"
                 value={filtros.codigo}
                 onChange={(e) => setFiltro('codigo', e.target.value)}
                 className="border border-gray-300 rounded px-3 py-2 w-32 focus:border-sky-400 outline-none"
@@ -347,13 +465,22 @@ export default function Inventory() {
               <thead>
                 <tr className="bg-[#f2f2f2] border-b border-gray-300">
                   {columnas.map((col) => (
-                    <th key={col.key} className="px-4 py-2.5 text-sm font-bold border-r border-gray-300 last:border-r-0">
+                    <th
+                      key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      title={col.key === 'opciones' ? undefined : 'Ordenar'}
+                      className={`px-4 py-2.5 text-sm font-bold border-r border-gray-300 last:border-r-0 ${
+                        col.key === 'opciones' ? '' : 'cursor-pointer select-none hover:bg-gray-200/70'
+                      }`}
+                    >
                       <div className="flex justify-between items-center">
                         {col.label}
-                        <div className="flex flex-col text-gray-400 scale-75">
-                          <ChevronUp size={12} className="-mb-1" />
-                          <ChevronDown size={12} />
-                        </div>
+                        {col.key !== 'opciones' && (
+                          <div className="flex flex-col scale-75">
+                            <ChevronUp size={12} className={`-mb-1 ${sortKey === col.key && sortDir === 'asc' ? 'text-sky-600' : 'text-gray-400'}`} />
+                            <ChevronDown size={12} className={sortKey === col.key && sortDir === 'desc' ? 'text-sky-600' : 'text-gray-400'} />
+                          </div>
+                        )}
                       </div>
                     </th>
                   ))}
@@ -361,8 +488,8 @@ export default function Inventory() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {(tabActiva === 'general' || tabActiva === 'almacen') && (
-                  productosFiltrados.length > 0 ? (
-                    productosFiltrados.map((prod) => (
+                  productosOrdenados.length > 0 ? (
+                    productosOrdenados.map((prod) => (
                       <tr key={prod.id} className="hover:bg-gray-50 transition-colors h-11">
                         <td className="px-4 border-r border-gray-200">{prod.nombre}</td>
                         <td className="px-4 border-r border-gray-200">{prod.categoria}</td>
@@ -411,7 +538,7 @@ export default function Inventory() {
                             <select
                               value={prod.whID}
                               onChange={(e) => requestWarehouseChange(prod, e.target.value)}
-                              disabled={savingWarehouse}
+                              disabled={savingWarehouse || !!warehouseModeStep || !!confirmWarehouseChange}
                               title={!prod.inventoryID ? 'Asignar almacén' : 'Cambiar de almacén'}
                               className="border border-gray-300 rounded px-2 py-1 text-sm bg-white cursor-pointer focus:border-sky-400 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -446,8 +573,8 @@ export default function Inventory() {
                   )
                 )}
                 {tabActiva === 'ajustes' && (
-                  adjustments.length > 0 ? (
-                    adjustments.map((adj) => (
+                  adjustmentsOrdenados.length > 0 ? (
+                    adjustmentsOrdenados.map((adj) => (
                       <tr key={adj.adjustID} className="hover:bg-gray-50 transition-colors h-11">
                         <td className="px-4 border-r border-gray-200">{adj.product?.productName}</td>
                         <td className="px-4 border-r border-gray-200">{adj.product?.category?.categoryName}</td>
@@ -456,7 +583,7 @@ export default function Inventory() {
                         <td className="px-4 border-r border-gray-200 text-center">
                           {adj.quantityTransferred != null && adj.quantityTransferred > 0 ? `+${adj.quantityTransferred}` : adj.quantityTransferred}
                         </td>
-                        <td className="px-4 border-r border-gray-200">{adj.adjustmentDate ? new Date(adj.adjustmentDate).toLocaleString('es-MX') : ''}</td>
+                        <td className="px-4 border-r border-gray-200">{formatDateTimeMX(adj.adjustmentDate)}</td>
                       </tr>
                     ))
                   ) : (
@@ -470,15 +597,15 @@ export default function Inventory() {
                   )
                 )}
                 {tabActiva === 'transferencias' && (
-                  adjustments.length > 0 ? (
-                    adjustments.map((adj) => (
+                  adjustmentsOrdenados.length > 0 ? (
+                    adjustmentsOrdenados.map((adj) => (
                       <tr key={adj.adjustID} className="hover:bg-gray-50 transition-colors h-11">
                         <td className="px-4 border-r border-gray-200">{adj.product?.productName}</td>
                         <td className="px-4 border-r border-gray-200">{adj.product?.category?.categoryName}</td>
                         <td className="px-4 border-r border-gray-200">{adj.sourceWarehouse?.whname}</td>
                         <td className="px-4 border-r border-gray-200">{adj.destinationWarehouse?.whname}</td>
                         <td className="px-4 border-r border-gray-200 text-center">{adj.quantityTransferred}</td>
-                        <td className="px-4 border-r border-gray-200">{adj.adjustmentDate ? new Date(adj.adjustmentDate).toLocaleString('es-MX') : ''}</td>
+                        <td className="px-4 border-r border-gray-200">{formatDateTimeMX(adj.adjustmentDate)}</td>
                       </tr>
                     ))
                   ) : (
@@ -527,24 +654,81 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Confirmación de cambio de almacén */}
+      {/* Paso 1: elegir Transferir/Ingresar + cantidad, antes de la confirmación */}
+      {warehouseModeStep && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm flex flex-col gap-4 animate-fade-in">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Mover a {warehouses.find((w) => w.whID === warehouseModeStep.nextWhID)?.whname}
+            </h2>
+            <p className="text-gray-600 text-sm">
+              ¿Cuántas unidades de <span className="font-semibold">{warehouseModeStep.row.nombre}</span> quieres mover?
+              Elige <span className="font-semibold">Transferir</span> si salen del almacén actual, o{' '}
+              <span className="font-semibold">Ingresar</span> si son unidades nuevas.
+            </p>
+            <div>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                autoFocus
+                value={warehouseQtyInput}
+                onChange={(e) => setWarehouseQtyInput(e.target.value)}
+                placeholder="Cantidad"
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:border-sky-400 outline-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Disponible para transferir en {warehouseModeStep.row.almacen || 'este almacén'}: {warehouseModeStep.row.stock}
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 mt-2 flex-wrap">
+              <button
+                onClick={cancelWarehouseModeStep}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handlePickWarehouseMode('transfer')}
+                disabled={warehouseModeStep.row.stock < 1}
+                title={warehouseModeStep.row.stock < 1 ? 'No hay unidades disponibles para transferir en este almacén' : undefined}
+                className="bg-[#e2694b] hover:bg-orange-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Transferir
+              </button>
+              <button
+                onClick={() => handlePickWarehouseMode('ingresar')}
+                className="bg-[#3ab0e2] hover:bg-sky-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer"
+              >
+                Ingresar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paso 2: confirmación de cambio de almacén (mismo diseño de siempre) */}
       {confirmWarehouseChange && (
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm flex flex-col gap-4 animate-fade-in">
-            <h2 className="text-lg font-semibold text-gray-900">Confirmar cambio de almacén</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {confirmWarehouseChange.mode === 'transfer' ? 'Confirmar transferencia' : 'Confirmar ingreso de stock'}
+            </h2>
             <p className="text-gray-600 text-sm">
-              {confirmWarehouseChange.row.inventoryID ? (
+              {confirmWarehouseChange.mode === 'transfer' ? (
                 <>
-                  ¿Confirmas mover <span className="font-semibold">{confirmWarehouseChange.row.nombre}</span> de{' '}
+                  ¿Confirmas transferir <span className="font-semibold">{confirmWarehouseChange.quantity}</span> unidades de{' '}
+                  <span className="font-semibold">{confirmWarehouseChange.row.nombre}</span> de{' '}
                   <span className="font-semibold">{confirmWarehouseChange.row.almacen || 'Sin asignar'}</span> a{' '}
                   <span className="font-semibold">{warehouses.find((w) => w.whID === confirmWarehouseChange.nextWhID)?.whname}</span>?
                   Esto se registrará en el Historial de transferencias.
                 </>
               ) : (
                 <>
-                  ¿Confirmas asignar <span className="font-semibold">{confirmWarehouseChange.row.nombre}</span> al almacén{' '}
-                  <span className="font-semibold">{warehouses.find((w) => w.whID === confirmWarehouseChange.nextWhID)?.whname}</span>{' '}
-                  con 0 en existencia?
+                  ¿Confirmas ingresar <span className="font-semibold">{confirmWarehouseChange.quantity}</span> unidades nuevas de{' '}
+                  <span className="font-semibold">{confirmWarehouseChange.row.nombre}</span> en{' '}
+                  <span className="font-semibold">{warehouses.find((w) => w.whID === confirmWarehouseChange.nextWhID)?.whname}</span>?
+                  Esto se registrará en el Historial de ajustes.
                 </>
               )}
             </p>

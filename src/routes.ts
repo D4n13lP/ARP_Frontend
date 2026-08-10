@@ -36,7 +36,7 @@ export const ROUTES = {
     ROOT: "/orders",
     REGISTER: "/orders/register",
     UPDATE: "/orders/update",
-    DETAIL: "/orders/detail",
+    DETAIL: "/orders/detail/:transactionID",
     REPORT: "/orders/report",
   },
 

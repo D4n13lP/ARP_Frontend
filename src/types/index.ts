@@ -95,6 +95,81 @@ export const DestAccountSchema = z.object({
 });
 export type DestAccount = z.infer<typeof DestAccountSchema>;
 
+export const TransDiscountSchema = z.object({
+  transDiscountID: z.string(),
+  percent: z.coerce.number(), // fracción 0-1, ej. 0.15 para 15%
+  type: z.enum(["t1", "t2"]),
+});
+export type TransDiscount = z.infer<typeof TransDiscountSchema>;
+
+// Respuesta de POST /transactions/sale (createSale) — solo lo que la vista
+// necesita mostrar/usar después de registrar la venta.
+export const SaleTransactionSchema = z.object({
+  transactionID: z.string(),
+  folio: z.string().nullable().optional(),
+  finalAmount: z.coerce.number(),
+  status: z.string(),
+});
+export type SaleTransaction = z.infer<typeof SaleTransactionSchema>;
+
+// Usuario embebido (vendedor en transUser->user, o quien cobró un pago) —
+// solo lo mínimo, sin datos sensibles.
+export const TransactionUserSchema = z.object({
+  userID: z.string(),
+  userName: z.string(),
+});
+export type TransactionUser = z.infer<typeof TransactionUserSchema>;
+
+export const PaymentHistorySchema = z.object({
+  pymntHistryID: z.string(),
+  paymentAmount: z.coerce.number(),
+  paymentDate: z.coerce.date().nullable().optional(),
+  paymentMethod: z.enum(["cash", "digital"]),
+  transactionID: z.string(),
+  clabe: z.string().nullable().optional(),
+  // Quién tenía la sesión abierta al registrarlo — null en pagos históricos
+  // de antes de esta columna.
+  collectedBy: TransactionUserSchema.nullable().optional(),
+});
+export type PaymentHistory = z.infer<typeof PaymentHistorySchema>;
+
+export const TransDetailSchema = z.object({
+  transDetailID: z.string(),
+  quantity: z.coerce.number(),
+  unitPrice: z.coerce.number(),
+  subtotal: z.coerce.number(),
+  appliedDisc: z.coerce.number().nullable().optional(),
+  transactionID: z.string(),
+  prodCode: z.string(),
+  product: ProductSchema.nullable().optional(),
+  transDiscountID: z.string().nullable().optional(),
+});
+export type TransDetail = z.infer<typeof TransDetailSchema>;
+
+// Venta o pedido completo, tal como lo devuelve GET /transactions y
+// GET /transactions/:id — usado por UpdateOrder_Page, OrderDetail_Page y
+// OrdersReports_Page.
+export const TransactionSchema = z.object({
+  transactionID: z.string(),
+  transType: z.enum(["sale", "order"]),
+  folio: z.string().nullable().optional(),
+  transactionDate: z.string().nullable().optional(),
+  deliveryDate: z.string().nullable().optional(),
+  dispatchDateI: z.string().nullable().optional(),
+  dispatchDateF: z.string().nullable().optional(),
+  status: z.enum(["pending", "completed"]),
+  finalAmount: z.coerce.number(),
+  outstandingAmount: z.coerce.number(),
+  deliveryLocation: z.string().nullable().optional(),
+  clientCode: z.string().nullable().optional(),
+  client: ClientSchema.nullable().optional(),
+  details: z.array(TransDetailSchema).optional(),
+  payments: z.array(PaymentHistorySchema).optional(),
+  users: z.array(TransactionUserSchema).optional(),
+  couriers: z.array(CourierSchema).optional(),
+});
+export type Transaction = z.infer<typeof TransactionSchema>;
+
 export const InventorySchema = z.object({
   inventoryID: z.string(),
   inventoryName: z.string().nullable().optional(),
