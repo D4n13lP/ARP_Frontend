@@ -454,14 +454,17 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
 
             {/* Datos de contacto */}
             <div className="flex flex-col gap-3 mt-4">
-              <input
-                type="text"
-                disabled={!clienteNoRegistrado}
-                value={nombreCliente}
-                onChange={(e) => setNombreCliente(e.target.value)}
-                placeholder="Nombre del cliente"
-                className={`border rounded-full h-8 px-4 w-64 ${!clienteNoRegistrado ? 'bg-white text-gray-500 border-gray-300' : 'bg-white border-gray-400 focus:outline-none focus:border-sky-500'}`}
-              />
+              <div className="flex items-center gap-3">
+                <span className="font-bold w-16">Nombre</span>
+                <input
+                  type="text"
+                  disabled={!clienteNoRegistrado}
+                  value={nombreCliente}
+                  onChange={(e) => setNombreCliente(e.target.value)}
+                  placeholder="Nombre del cliente"
+                  className={`border rounded-full h-8 px-4 flex-1 ${!clienteNoRegistrado ? 'bg-white text-gray-500 border-gray-300' : 'bg-white border-gray-400 focus:outline-none focus:border-sky-500'}`}
+                />
+              </div>
               <div className="flex items-center gap-3">
                 <span className="font-bold w-16">Teléfono</span>
                 <input

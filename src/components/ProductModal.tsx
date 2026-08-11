@@ -193,12 +193,31 @@ import { useAppStore } from "../stores/useAppStore";
 import { updateProduct, deleteProduct } from "../api/products";
 import { getCategories, createCategory } from "../api/categories";
 import { getProductUnits, createProductUnit } from "../api/productUnits";
+import { getSuppliers, createSupplier } from "../api/suppliers";
+import { linkSupplierProduct, unlinkSupplierProduct } from "../api/suppProd";
 import { uploadPicture, deletePicture } from "../api/pictures";
-import type { Category, Picture, Product, ProductUnit } from "../types";
+import type { Category, Picture, Product, ProductUnit, Supplier } from "../types";
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#e5e7eb"/><text x="50%" y="50%" font-family="sans-serif" font-size="28" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">Sin imagen</text></svg>'
 );
+
+// Renglón de la tabla de detalles del centro del modal. Los campos son todos
+// opcionales salvo k/l/ed/money porque cada tipo de renglón (categoría,
+// unidad, proveedor, el botón "+") solo usa un subconjunto.
+type ModalRow = {
+  k: string;
+  l: string;
+  ed: boolean;
+  money: boolean;
+  select?: boolean;
+  unitSelect?: boolean;
+  supplierSelect?: boolean;
+  supplierIdx?: number;
+  removable?: boolean;
+  addSupplier?: boolean;
+  display?: string;
+};
 
 export default function ProductModal() {
   // --- STORE ---
@@ -222,12 +241,22 @@ export default function ProductModal() {
   // al guardar (ver resolución en handleSave).
   const [units, setUnits] = useState<ProductUnit[]>([]);
   const [unitInput, setUnitInput] = useState('');
+  // Proveedores: relación muchos-a-muchos vía "suppProd" — un producto puede
+  // tener 0, 1 o varios. La lista de renglones editables es dinámica: arranca
+  // con uno por cada proveedor ya vinculado (o uno vacío si no tiene
+  // ninguno), y "Agregar proveedor" va anexando renglones al final. Cada
+  // renglón es un input con datalist (mismo patrón que categoría/unidad):
+  // autocompleta con los proveedores ya guardados o permite escribir uno
+  // nuevo, que se crea al guardar.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierInputs, setSupplierInputs] = useState<string[]>(['']);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getCategories().then(setCategories);
     getProductUnits().then(setUnits).catch(() => {});
+    getSuppliers().then(setSuppliers).catch(() => {});
   }, []);
 
   // Sincronizar datos al abrir
@@ -237,6 +266,7 @@ export default function ProductModal() {
       setLocalPictures(selectedProduct.pictures || []);
       setCategoryInput(selectedProduct.category?.categoryName || '');
       setUnitInput(selectedProduct.unit?.produnitName || '');
+      setSupplierInputs(selectedProduct.suppliers?.length ? selectedProduct.suppliers.map((s) => s.supplierName) : ['']);
       setCurrentImgIndex(0);
       setIsEditing(false);
     }
@@ -320,6 +350,36 @@ export default function ProductModal() {
         }
       }
 
+      // Resolver los proveedores escritos: cada renglón no vacío se resuelve
+      // al existente por nombre o se crea uno nuevo. Al final se comparan los
+      // suppCode resultantes contra los que el producto ya tenía vinculados:
+      // se desvinculan los que ya no están y se vinculan los que son nuevos
+      // (los que no cambiaron no se tocan).
+      const currentSuppliers = formData.suppliers || [];
+      const newSuppCodes: string[] = [];
+      let suppliersCatalog = suppliers;
+      for (const raw of supplierInputs) {
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        const existing = suppliersCatalog.find((s) => s.supplierName.trim().toLowerCase() === trimmed.toLowerCase());
+        let suppCode: string;
+        if (existing) {
+          suppCode = existing.suppCode;
+        } else {
+          const created = await createSupplier({ supplierName: trimmed });
+          suppCode = created.suppCode;
+          suppliersCatalog = [...suppliersCatalog, created];
+          setSuppliers(suppliersCatalog);
+        }
+        if (!newSuppCodes.includes(suppCode)) newSuppCodes.push(suppCode);
+      }
+      const toUnlink = currentSuppliers.filter((s) => !newSuppCodes.includes(s.suppCode));
+      const toLink = newSuppCodes.filter((code) => !currentSuppliers.some((s) => s.suppCode === code));
+      await Promise.all([
+        ...toUnlink.map((s) => unlinkSupplierProduct(s.suppCode, formData.prodCode)),
+        ...toLink.map((code) => linkSupplierProduct(code, formData.prodCode)),
+      ]);
+
       const updated = await updateProduct(formData.prodCode, {
         productName: formData.productName,
         sku: formData.sku,
@@ -349,6 +409,42 @@ export default function ProductModal() {
       alert(error?.response?.data?.message || "No se pudo eliminar el producto.");
     }
   };
+
+  // Renglones de la tabla central. Los de proveedor son dinámicos: en
+  // edición, uno por cada input actual (+ el botón "Agregar proveedor" al
+  // final); en solo-lectura, uno por cada proveedor real que tenga el
+  // producto (o uno solo diciendo "Sin proveedor" si no tiene ninguno).
+  const supplierRows: ModalRow[] = isEditing
+    ? supplierInputs.map((_, idx) => ({
+        k: `supplier-${idx}`,
+        l: supplierInputs.length > 1 ? `Proveedor ${idx + 1}:` : "Proveedor:",
+        ed: true,
+        money: false,
+        supplierSelect: true,
+        supplierIdx: idx,
+        removable: supplierInputs.length > 1,
+      }))
+    : (formData.suppliers && formData.suppliers.length > 0
+        ? formData.suppliers.map((s, idx, arr) => ({
+            k: `supplier-view-${s.suppCode}`,
+            l: arr.length > 1 ? `Proveedor ${idx + 1}:` : "Proveedor:",
+            ed: false,
+            money: false,
+            display: s.supplierName,
+          }))
+        : [{ k: "supplier-view-none", l: "Proveedor:", ed: false, money: false, display: "Sin proveedor" }]);
+
+  const rows: ModalRow[] = [
+    { k: "prodCode", l: "Código de producto:", ed: false, money: false },
+    { k: "sku", l: "SKU:", ed: true, money: false },
+    { k: "category", l: "Categoría:", ed: true, money: false, select: true, display: formData.category?.categoryName || "Sin categoría" },
+    { k: "unit", l: "Unidad:", ed: true, money: false, unitSelect: true, display: formData.unit?.produnitName || "Sin unidad" },
+    { k: "cost", l: "Costo:", ed: true, money: true },
+    { k: "salePrice", l: "Precio de venta:", ed: true, money: true },
+    { k: "lowStock", l: "Stock bajo:", ed: true, money: false },
+    ...supplierRows,
+    ...(isEditing ? [{ k: "supplier-add", l: "", ed: false, money: false, addSupplier: true }] : []),
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 md:p-6 animate-fade-in">
@@ -457,15 +553,20 @@ export default function ProductModal() {
                 <div className="max-h-[450px] overflow-y-auto">
                   <table className="w-full text-sm md:text-base text-left border-collapse">
                     <tbody className="divide-y divide-gray-200">
-                      {[
-                        { k: "prodCode", l: "Código de producto:", ed: false, money: false },
-                        { k: "sku", l: "SKU:", ed: true, money: false },
-                        { k: "category", l: "Categoría:", ed: true, money: false, select: true, display: formData.category?.categoryName || "Sin categoría" },
-                        { k: "unit", l: "Unidad:", ed: true, money: false, unitSelect: true, display: formData.unit?.produnitName || "Sin unidad" },
-                        { k: "cost", l: "Costo:", ed: true, money: true },
-                        { k: "salePrice", l: "Precio de venta:", ed: true, money: true },
-                        { k: "lowStock", l: "Stock bajo:", ed: true, money: false },
-                      ].map((row) => (
+                      {rows.map((row) => (
+                        row.addSupplier ? (
+                          <tr key={row.k}>
+                            <td colSpan={2} className="px-6 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setSupplierInputs((prev) => [...prev, ''])}
+                                className="text-emerald-600 hover:text-emerald-800 font-bold text-sm cursor-pointer transition-colors"
+                              >
+                                + Agregar proveedor
+                              </button>
+                            </td>
+                          </tr>
+                        ) : (
                         <tr
                           key={row.k}
                           className="hover:bg-emerald-50/30 transition-colors group"
@@ -474,7 +575,38 @@ export default function ProductModal() {
                             {row.l}
                           </td>
                           <td className="px-6 py-4">
-                            {isEditing && row.ed && row.unitSelect ? (
+                            {isEditing && row.ed && row.supplierSelect ? (
+                              <div className="flex items-center gap-2">
+                                {/* Mismo patrón de input+datalist que categoría/unidad:
+                                    permite elegir un proveedor ya guardado (con
+                                    autocompletado del navegador) o escribir uno
+                                    nuevo, que se crea al guardar. El datalist se
+                                    define una sola vez fuera de esta tabla. */}
+                                <input
+                                  list="productModalSuppliersList"
+                                  className="w-full border-b-2 border-emerald-400 outline-none px-1 bg-transparent font-bold text-gray-800"
+                                  value={supplierInputs[row.supplierIdx!]}
+                                  onChange={(e) => {
+                                    const idx = row.supplierIdx!;
+                                    setSupplierInputs((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)));
+                                  }}
+                                  placeholder="Escribe o elige un proveedor"
+                                />
+                                {row.removable && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const idx = row.supplierIdx!;
+                                      setSupplierInputs((prev) => prev.filter((_, i) => i !== idx));
+                                    }}
+                                    className="text-gray-400 hover:text-red-500 font-bold px-1 cursor-pointer transition-colors flex-shrink-0"
+                                    title="Quitar proveedor"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            ) : isEditing && row.ed && row.unitSelect ? (
                               <>
                                 {/* input con datalist: el desplegable lo dibuja el
                                     navegador (no lo recorta el scroll de la tarjeta)
@@ -534,9 +666,17 @@ export default function ProductModal() {
                             )}
                           </td>
                         </tr>
+                        )
                       ))}
                     </tbody>
                   </table>
+                  {/* Un solo datalist para todos los renglones de proveedor
+                      (puede haber varios) — cada input lo referencia por id. */}
+                  <datalist id="productModalSuppliersList">
+                    {suppliers.map((s) => (
+                      <option key={s.suppCode} value={s.supplierName} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
@@ -597,6 +737,7 @@ export default function ProductModal() {
                     setLocalPictures(selectedProduct.pictures || []);
                     setCategoryInput(selectedProduct.category?.categoryName || '');
                     setUnitInput(selectedProduct.unit?.produnitName || '');
+                    setSupplierInputs(selectedProduct.suppliers?.length ? selectedProduct.suppliers.map((s) => s.supplierName) : ['']);
                   }}
                   className="bg-gray-400 hover:bg-gray-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl transition-all cursor-pointer flex items-center gap-3 uppercase"
                 >

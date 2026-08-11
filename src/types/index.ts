@@ -48,6 +48,15 @@ export const SupplierSchema = z.object({
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
 
+// Solo lo que ProductModal necesita para mostrar/editar el proveedor
+// vinculado a un producto — no reusa SupplierSchema completo porque eso
+// crearía una referencia circular Product↔Supplier (dos z.lazy mutuos)
+// que rompe la inferencia de tipos de TS.
+const ProductSupplierRefSchema = z.object({
+  suppCode: z.string(),
+  supplierName: z.string(),
+});
+
 export const ProductSchema = z.object({
   prodCode: z.string(),
   productName: z.string(),
@@ -65,6 +74,7 @@ export const ProductSchema = z.object({
   pictures: z.array(PictureSchema).optional(),
   discountID: z.string().nullable().optional(),
   promo: PromoSchema.nullable().optional(),
+  suppliers: z.array(ProductSupplierRefSchema).optional(),
 });
 export type Product = z.infer<typeof ProductSchema>;
 
