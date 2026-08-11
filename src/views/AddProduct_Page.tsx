@@ -218,7 +218,7 @@ export default function AddProduct_Page() {
 
       {/* HEADER LOGO Y TÍTULO (en la misma fila para pantallas grandes) */}
       <div className="max-w-7xl mx-auto px-6 md:px-12 py-8 relative">
-        <div className="absolute left-6 md:left-12 top-1/2 -translate-y-1/2 z-10 hidden md:block">
+        <div className="absolute left-6 md:left-12 top-1/2 -translate-y-1/2 z-10 max-lg:portrait:hidden">
           <img 
             src={logoEmpresa} 
             alt="Acabados Rústicos Pirámides" 

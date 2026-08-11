@@ -447,7 +447,7 @@ export default function ProductModal() {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 md:p-6 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 md:p-4 animate-fade-in">
       <input
         type="file"
         ref={fileInputRef}
@@ -456,8 +456,8 @@ export default function ProductModal() {
         onChange={handleFileChange}
       />
 
-      {/* CONTENEDOR PRINCIPAL: Ancho aumentado a 7xl para que sea espacioso */}
-      <div className="bg-white w-full max-w-7xl max-h-[95vh] overflow-y-auto rounded-3xl shadow-2xl relative border border-gray-100">
+      {/* CONTENEDOR PRINCIPAL: aprovecha más espacio lateral en pantallas grandes */}
+      <div className="bg-white w-full max-w-384 max-h-[95vh] overflow-y-auto rounded-3xl shadow-2xl relative border border-gray-100">
         {/* BOTÃ“N CERRAR GLOBAL */}
         <button
           onClick={closeModal}
@@ -486,7 +486,7 @@ export default function ProductModal() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
             {/* 1. SECCIÃ“N IZQUIERDA: GALERÃA (4 columnas) */}
-            <div className="lg:col-span-4 flex flex-col gap-6">
+            <div className="lg:col-span-3 flex flex-col gap-6">
               <div
                 className="relative group cursor-zoom-in rounded-2xl overflow-hidden border-2 border-gray-100 aspect-square bg-gray-50 shadow-inner shadow-black/5"
                 onClick={() => setIsFullscreen(true)}
@@ -548,19 +548,19 @@ export default function ProductModal() {
             </div>
 
             {/* 2. SECCIÃ“N CENTRAL: TABLA DINÃMICA (5 columnas) */}
-            <div className="lg:col-span-5 flex flex-col">
+            <div className="lg:col-span-6 flex flex-col">
               <div className="border-2 border-gray-200 rounded-2xl overflow-hidden shadow-xl bg-white">
-                <div className="max-h-[450px] overflow-y-auto">
-                  <table className="w-full text-sm md:text-base text-left border-collapse">
+                <div className="max-h-137.5 overflow-y-auto">
+                  <table className="w-full text-base md:text-lg text-left border-collapse">
                     <tbody className="divide-y divide-gray-200">
                       {rows.map((row) => (
                         row.addSupplier ? (
                           <tr key={row.k}>
-                            <td colSpan={2} className="px-6 py-3 text-center">
+                            <td colSpan={2} className="px-8 py-3 text-center">
                               <button
                                 type="button"
                                 onClick={() => setSupplierInputs((prev) => [...prev, ''])}
-                                className="text-emerald-600 hover:text-emerald-800 font-bold text-sm cursor-pointer transition-colors"
+                                className="text-emerald-600 hover:text-emerald-800 font-bold text-base cursor-pointer transition-colors"
                               >
                                 + Agregar proveedor
                               </button>
@@ -571,10 +571,10 @@ export default function ProductModal() {
                           key={row.k}
                           className="hover:bg-emerald-50/30 transition-colors group"
                         >
-                          <td className="px-6 py-4 font-black text-gray-500 border-r border-gray-100 w-1/2 bg-gray-50/50 text-[11px] md:text-xs tracking-widest uppercase group-hover:text-emerald-600">
+                          <td className="px-8 py-3 font-black text-gray-500 border-r border-gray-100 w-1/2 bg-gray-50/50 text-xs md:text-sm tracking-widest uppercase group-hover:text-emerald-600">
                             {row.l}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-8 py-3">
                             {isEditing && row.ed && row.supplierSelect ? (
                               <div className="flex items-center gap-2">
                                 {/* Mismo patrón de input+datalist que categoría/unidad:
@@ -726,9 +726,9 @@ export default function ProductModal() {
               <>
                 <button
                   onClick={handleSave}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-12 py-4 rounded-2xl font-black shadow-xl transition-all active:scale-95 cursor-pointer flex items-center gap-3 uppercase"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all active:scale-95 cursor-pointer flex items-center gap-2 md:gap-3 uppercase text-sm md:text-base"
                 >
-                  <Check size={24} /> Guardar Cambios
+                  <Check className="w-4 h-4 md:w-5 md:h-5" /> Guardar Cambios
                 </button>
                 <button
                   onClick={() => {
@@ -739,24 +739,24 @@ export default function ProductModal() {
                     setUnitInput(selectedProduct.unit?.produnitName || '');
                     setSupplierInputs(selectedProduct.suppliers?.length ? selectedProduct.suppliers.map((s) => s.supplierName) : ['']);
                   }}
-                  className="bg-gray-400 hover:bg-gray-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl transition-all cursor-pointer flex items-center gap-3 uppercase"
+                  className="bg-gray-400 hover:bg-gray-500 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all cursor-pointer flex items-center gap-2 md:gap-3 uppercase text-sm md:text-base"
                 >
-                  <RotateCcw size={24} /> Cancelar
+                  <RotateCcw className="w-4 h-4 md:w-5 md:h-5" /> Cancelar
                 </button>
               </>
             ) : (
               <>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="bg-[#3ab0e2] hover:bg-emerald-600 text-white px-14 py-4 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-3 uppercase tracking-wider"
+                  className="bg-[#3ab0e2] hover:bg-emerald-600 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base"
                 >
-                  <Edit3 size={24} /> Editar Producto
+                  <Edit3 className="w-4 h-4 md:w-5 md:h-5" /> Editar
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="bg-red-500 hover:bg-red-700 text-white px-14 py-4 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-3 uppercase tracking-wider"
+                  className="bg-red-500 hover:bg-red-700 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base"
                 >
-                  <Trash2 size={24} /> Eliminar Registro
+                  <Trash2 className="w-4 h-4 md:w-5 md:h-5" /> Eliminar
                 </button>
               </>
             )}

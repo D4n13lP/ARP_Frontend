@@ -111,7 +111,7 @@ export default function ClientDiscountSetup_Page() {
 
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col">
-      <div className="max-w-7xl mx-auto w-full mb-4">
+      <div className="max-w-7xl mx-auto w-full mb-4 max-lg:portrait:hidden">
         <img src={logoEmpresa} alt="Logo" className="h-16 md:h-20 object-contain" />
       </div>
 
@@ -207,8 +207,8 @@ export default function ClientDiscountSetup_Page() {
             </button>
           </div>
 
-          {/* TABLA CON CÁLCULO DINÁMICO */}
-          <div className="overflow-x-auto border border-gray-200 rounded-lg mb-8">
+          {/* TABLA CON CÁLCULO DINÁMICO — escritorio/tablet (>= md), intacta */}
+          <div className="overflow-x-auto border border-gray-200 rounded-lg mb-8 hidden md:block">
             <table className="w-full text-left">
               <thead className="bg-gray-100 text-gray-600 text-xs font-bold uppercase">
                 <tr>
@@ -243,6 +243,26 @@ export default function ClientDiscountSetup_Page() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Tarjetas — celulares (< md) */}
+          <div className="md:hidden flex flex-col gap-3 mb-8">
+            {buscandoProducto ? (
+              <p className="text-center text-gray-400 italic py-8">Buscando...</p>
+            ) : resultadosProducto.length > 0 ? (
+              resultadosProducto.map((p) => (
+                <div key={p.prodCode} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                  <h3 className="font-bold text-gray-900 text-base leading-tight">{p.productName}</h3>
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                    <div><span className="text-gray-500 block mb-0.5">Categoría</span><span className="font-semibold text-gray-800">{p.category?.categoryName || '—'}</span></div>
+                    <div><span className="text-gray-500 block mb-0.5">Precio</span><span className="font-semibold text-gray-800">${Number(p.salePrice).toFixed(2)}</span></div>
+                    <div className="col-span-2"><span className="text-gray-500 block mb-0.5">Precio con descuento</span><span className="font-bold text-[#3ab0e2]">${calcularPrecioConDescuento(Number(p.salePrice))}</span></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-gray-400 italic py-8">Busca un producto para ver el cálculo.</p>
+            )}
           </div>
 
           {/* FOOTER: PORCENTAJE Y BOTÓN */}

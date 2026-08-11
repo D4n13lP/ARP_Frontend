@@ -167,7 +167,9 @@ export default function ManageAccount_Page() {
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
       {/* Header */}
       <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem]">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2">
+        {/* Logo del negocio: oculto en celular/tablet en modo vertical (no en
+            horizontal ni en laptop/escritorio) para no encimarse con el título. */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 max-lg:portrait:hidden">
           <img
             src={logoEmpresa}
             alt="LogoEmpresa"

@@ -9,11 +9,11 @@ export default function SuppliersMenu_Page() {
       {/* Header */}
       <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem]">
         {/* Logo a la izquierda */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2">
-          <img 
-            src={logoEmpresa} 
-            alt="Acabados Rústicos Pirámides" 
-            className="h-20 w-auto object-contain" 
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 max-lg:portrait:hidden">
+          <img
+            src={logoEmpresa}
+            alt="Acabados Rústicos Pirámides"
+            className="h-20 w-auto object-contain"
           />
         </div>
         

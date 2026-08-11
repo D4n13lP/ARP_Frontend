@@ -29,14 +29,15 @@ export default function WatchSuppliers_Page() {
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
       
       {/* Header aligned like ManageAccount_Page but adapted for WatchSuppliers_Page */}
-      <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem]">
-        
-        {/* Back Button and Logo (Left) */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
-          <img 
-            src={logoEmpresa} 
-            alt="LogoEmpresa" 
-            className="h-20 w-auto object-contain" 
+      <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem] max-lg:portrait:flex-col max-lg:portrait:gap-4">
+
+        {/* Back Button and Logo (Left) — en celular vertical se saca del
+            position:absolute para que no se encime con el título de abajo. */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6 max-lg:portrait:static max-lg:portrait:translate-y-0 max-lg:portrait:self-start">
+          <img
+            src={logoEmpresa}
+            alt="LogoEmpresa"
+            className="h-20 w-auto object-contain max-lg:portrait:hidden"
           />
           <button 
             onClick={() => navigate(-1)} 
@@ -101,8 +102,8 @@ export default function WatchSuppliers_Page() {
 
         </div>
 
-        {/* Results Table Section */}
-        <div className="w-full max-w-7xl overflow-x-auto">
+        {/* Results Table Section — escritorio/tablet (>= md), intacta */}
+        <div className="w-full max-w-7xl overflow-x-auto hidden md:block">
           <table className="w-full border-collapse text-sm text-left text-gray-700 border border-gray-300">
             <thead className="bg-gray-100 text-gray-800 font-semibold border-b border-gray-300">
               <tr>
@@ -145,6 +146,48 @@ export default function WatchSuppliers_Page() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Tarjetas — celulares (< md). Mismos datos/handler que la tabla. */}
+        <div className="w-full max-w-7xl md:hidden flex flex-col gap-3">
+          {filteredSuppliers.length === 0 ? (
+            <p className="text-center text-gray-400 italic py-8">No se encontraron proveedores.</p>
+          ) : filteredSuppliers.map((item) => (
+            <div key={item.suppCode} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base leading-tight">{item.supplierName}</h3>
+                <span className="text-xs text-gray-500 font-mono">{item.suppCode}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Empresa</span>
+                  <span className="font-semibold text-gray-800">{item.enterpBusi || '---'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Dirección</span>
+                  <span className="font-semibold text-gray-800">{item.address || '---'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Tel. oficina</span>
+                  <span className="font-semibold text-gray-800">{item.officePhone || '---'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Contacto</span>
+                  <span className="font-semibold text-gray-800">{item.contactName || '---'}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-gray-500 block mb-0.5">Tel. contacto</span>
+                  <span className="font-semibold text-gray-800">{item.contactPhone || '---'}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate(`/suppliers/detail/${item.suppCode}`)}
+                className="w-full py-2 bg-gray-50 text-gray-700 font-medium text-xs rounded-lg active:bg-gray-100 cursor-pointer"
+              >
+                Ver información
+              </button>
+            </div>
+          ))}
         </div>
       </main>
     </div>

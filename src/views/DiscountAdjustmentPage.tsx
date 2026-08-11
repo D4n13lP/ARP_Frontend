@@ -72,7 +72,7 @@ export default function DiscountAdjustments_Page() {
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col">
       {/* LOGO */}
-      <div className="max-w-7xl mx-auto w-full mb-4">
+      <div className="max-w-7xl mx-auto w-full mb-4 max-lg:portrait:hidden">
         <img src={logoEmpresa} alt="Logo" className="h-16 md:h-20 object-contain" />
       </div>
 

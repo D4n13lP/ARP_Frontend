@@ -229,7 +229,7 @@ export default function OtherAccountSettings_Page() {
         {loading ? (
           <p className="text-gray-500">Cargando...</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 hidden md:block">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
@@ -310,6 +310,83 @@ export default function OtherAccountSettings_Page() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Tarjetas — celulares (< md). Mismos datos/handlers que la tabla; toda
+            la tarjeta selecciona al usuario, igual que la fila en escritorio. */}
+        {!loading && (
+          <div className="md:hidden flex flex-col gap-3">
+            {users.map((u) => {
+              const selected = u.userID === selectedUserID;
+              const isSelf = u.userID === authUser?.userID;
+              const canView = u.userType === 'admin' || (selectedModuleID
+                ? permissionFor(u.userID, selectedModuleID)?.canView ?? false
+                : userHasAllModules(u.userID, 'canView'));
+              const canEdit = u.userType === 'admin' || (selectedModuleID
+                ? permissionFor(u.userID, selectedModuleID)?.canEdit ?? false
+                : userHasAllModules(u.userID, 'canEdit'));
+              return (
+                <div
+                  key={u.userID}
+                  onClick={() => { setSelectedUserID(u.userID); setSelectedModuleID(null); }}
+                  className={`p-4 rounded-xl border shadow-sm space-y-3 cursor-pointer transition-colors ${
+                    selected ? 'bg-orange-100 border-l-4 border-l-[#e2694b] border-t border-r border-b border-orange-100' : 'bg-white border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-bold text-gray-900 text-base leading-tight">{u.userName}</h3>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        disabled={busy || isSelf}
+                        title={isSelf ? 'No puedes eliminar tu propia cuenta' : 'Eliminar cuenta'}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteUser(u); }}
+                        className="text-red-500 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100" onClick={(e) => e.stopPropagation()}>
+                    <label className="flex flex-col items-center gap-1">
+                      <span className="text-gray-500">Lectura</span>
+                      <input
+                        type="checkbox"
+                        checked={canView}
+                        disabled={busy || u.userType === 'admin'}
+                        onChange={(e) => (selectedModuleID
+                          ? handleToggleModulePermission(u.userID, selectedModuleID, 'canView', e.target.checked)
+                          : handleToggleBulk(u.userID, 'canView', e.target.checked))}
+                        className="h-4 w-4 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                    </label>
+                    <label className="flex flex-col items-center gap-1">
+                      <span className="text-gray-500">Editar</span>
+                      <input
+                        type="checkbox"
+                        checked={canEdit}
+                        disabled={busy || u.userType === 'admin'}
+                        onChange={(e) => (selectedModuleID
+                          ? handleToggleModulePermission(u.userID, selectedModuleID, 'canEdit', e.target.checked)
+                          : handleToggleBulk(u.userID, 'canEdit', e.target.checked))}
+                        className="h-4 w-4 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                    </label>
+                    <label className="flex flex-col items-center gap-1">
+                      <span className="text-gray-500">Admin</span>
+                      <input
+                        type="checkbox"
+                        checked={u.userType === 'admin'}
+                        disabled={busy}
+                        onChange={(e) => handleToggleAdmin(u, e.target.checked)}
+                        className="h-4 w-4 accent-[#e2694b] cursor-pointer disabled:cursor-not-allowed"
+                      />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </main>

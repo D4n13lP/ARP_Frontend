@@ -104,13 +104,14 @@ export default function OrderDetail_Page() {
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
 
       {/* Header */}
-      <div className="w-full max-w-7xl mb-8 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-20">
-        {/* Back Button and Logo (Left) */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
+      <div className="w-full max-w-7xl mb-8 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-20 max-lg:portrait:flex-col max-lg:portrait:gap-4">
+        {/* Back Button and Logo (Left) — en celular vertical se saca del
+            position:absolute para que no se encime con el título de abajo. */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6 max-lg:portrait:static max-lg:portrait:translate-y-0 max-lg:portrait:self-start">
           <img
             src={logoEmpresa}
             alt="Logo Empresa"
-            className="h-20 w-auto object-contain"
+            className="h-20 w-auto object-contain max-lg:portrait:hidden"
           />
           <button
             onClick={() => navigate(-1)}
@@ -183,7 +184,7 @@ export default function OrderDetail_Page() {
             <span className="text-gray-600">{order.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}</span>
           </div>
 
-          <div className="w-full mb-6">
+          <div className="w-full mb-6 hidden md:block">
             <table className="w-full border-collapse text-sm text-center text-gray-700 border border-gray-300">
               <thead className="bg-gray-100 text-gray-800 font-semibold border-b border-gray-300 text-xs">
                 <tr>
@@ -206,6 +207,19 @@ export default function OrderDetail_Page() {
             </table>
           </div>
 
+          {/* Tarjetas — celulares (< md) */}
+          <div className="w-full mb-6 md:hidden flex flex-col gap-2">
+            {order.details?.map((item) => (
+              <div key={item.transDetailID} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center gap-3 text-sm">
+                <div className="min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{item.product?.productName}</div>
+                  <div className="text-xs text-gray-500">{item.quantity} × {formatMoney(item.unitPrice)}</div>
+                </div>
+                <div className="shrink-0 font-semibold text-gray-800">{formatMoney(item.subtotal)}</div>
+              </div>
+            ))}
+          </div>
+
           <div className="flex justify-center text-lg mt-2 text-gray-800">
             Importe total {formatMoney(order.finalAmount)}
           </div>
@@ -214,7 +228,7 @@ export default function OrderDetail_Page() {
         {/* Right Column: Update Forms */}
         <div className="flex-1 flex flex-col pl-0 lg:pl-10">
           <h3 className="text-gray-800 font-medium mb-4">Historial de pagos</h3>
-          <div className="w-full mb-6">
+          <div className="w-full mb-6 hidden md:block">
             <table className="w-full border-collapse text-sm text-left text-gray-700 border border-gray-300">
               <thead className="bg-gray-100 text-gray-800 font-semibold border-b border-gray-300 text-xs">
                 <tr>
@@ -237,6 +251,21 @@ export default function OrderDetail_Page() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Tarjetas — celulares (< md) */}
+          <div className="w-full mb-6 md:hidden flex flex-col gap-2">
+            {order.payments && order.payments.length > 0 ? order.payments.map((payment) => (
+              <div key={payment.pymntHistryID} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center gap-3 text-sm">
+                <div className="min-w-0">
+                  <div className="font-bold text-gray-900 truncate">{payment.collectedBy?.userName || '-'}</div>
+                  <div className="text-xs text-gray-500">{payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City' }) : '-'}</div>
+                </div>
+                <div className="shrink-0 font-semibold text-gray-800">{formatMoney(payment.paymentAmount)}</div>
+              </div>
+            )) : (
+              <p className="text-gray-400 italic text-center py-4">Sin pagos registrados todavía.</p>
+            )}
           </div>
 
           <div className="flex flex-col gap-3 mb-8">

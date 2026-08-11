@@ -29,7 +29,7 @@ export default function DiscountsMenu_Page() {
           <img
             src={logoEmpresa}
             alt="Logo Empresa"
-            className="absolute left-4 sm:left-6 lg:left-8 h-16 md:h-20 object-contain"
+            className="absolute left-4 sm:left-6 lg:left-8 h-16 md:h-20 object-contain max-lg:portrait:hidden"
           />
           <div className="flex items-center gap-4 text-[#e65100]">
             <h1 className="text-4xl md:text-5xl font-normal tracking-tight text-center">

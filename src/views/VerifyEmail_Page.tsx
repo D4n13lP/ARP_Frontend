@@ -35,7 +35,7 @@ export default function VerifyEmail_Page() {
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center justify-center">
       <div className="w-full max-w-md flex flex-col items-center text-center gap-6">
-        <img src={logoEmpresa} alt="Logo Empresa" className="h-20 w-auto object-contain" />
+        <img src={logoEmpresa} alt="Logo Empresa" className="h-20 w-auto object-contain max-lg:portrait:hidden" />
 
         {status === 'loading' && (
           <>

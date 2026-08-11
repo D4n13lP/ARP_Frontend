@@ -136,7 +136,7 @@ export default function PromotionSetup_Page() {
 
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col">
-      <div className="max-w-7xl mx-auto w-full mb-4">
+      <div className="max-w-7xl mx-auto w-full mb-4 max-lg:portrait:hidden">
         <img src={logoEmpresa} alt="Logo" className="h-16 md:h-20 object-contain" />
       </div>
 
@@ -237,8 +237,8 @@ export default function PromotionSetup_Page() {
             </div>
           </div>
 
-          {/* TABLA DINÁMICA */}
-          <div className="overflow-x-auto border border-gray-200 rounded-lg mb-8">
+          {/* TABLA DINÁMICA — escritorio/tablet (>= md), intacta */}
+          <div className="overflow-x-auto border border-gray-200 rounded-lg mb-8 hidden md:block">
             <table className="w-full text-left border-collapse">
               <thead className="bg-gray-50 text-gray-600 text-sm font-bold">
                 <tr>
@@ -290,6 +290,49 @@ export default function PromotionSetup_Page() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Tarjetas — celulares (< md). Mismos datos/handler que la tabla. */}
+          <div className="md:hidden flex flex-col gap-3 mb-8">
+            {isProductSpecific ? (
+              buscandoProducto ? (
+                <p className="text-center text-gray-400 italic py-8">Buscando...</p>
+              ) : resultadosProducto.length === 0 ? (
+                <p className="text-center text-gray-400 italic py-8">Busque un producto para mostrar resultados</p>
+              ) : resultadosProducto.map((p) => (
+                <div
+                  key={p.prodCode}
+                  onClick={() => handleSelectProducto(p)}
+                  className={`bg-white p-4 rounded-xl border shadow-sm space-y-3 cursor-pointer ${productoSel?.prodCode === p.prodCode ? 'border-sky-300 bg-blue-50/40' : 'border-gray-200'}`}
+                >
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-gray-900 text-base leading-tight truncate">{p.productName}</h3>
+                      <span className="text-xs text-gray-500">{p.category?.categoryName || '—'}</span>
+                    </div>
+                    {p.discountID ? <span className="shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded text-xs">CON PROMO</span> : <span className="shrink-0 text-gray-400 text-xs">Sin promo</span>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                    <div><span className="text-gray-500 block mb-0.5">Precio</span><span className="font-semibold text-gray-800">${Number(p.salePrice).toFixed(2)}</span></div>
+                    <div><span className="text-gray-500 block mb-0.5">Precio c/Desc</span><span className="font-bold text-[#3ab0e2]">${productoSel?.prodCode === p.prodCode ? calcularPrecioConDescuento(Number(p.salePrice)) : Number(p.salePrice).toFixed(2)}</span></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-900 text-base leading-tight">Todos los productos</h3>
+                    <span className="text-xs text-gray-500">{categoriaActual?.categoryName || busquedaCat || 'Sin categoría seleccionada'}</span>
+                  </div>
+                  {promoDeCategoria ? <span className="shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded text-xs">CON PROMO ({Math.round(Number(promoDeCategoria.discountPercentage) * 100)}%)</span> : <span className="shrink-0 text-gray-400 text-xs">Sin promo</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                  <div><span className="text-gray-500 block mb-0.5">Precio</span><span className="font-semibold text-gray-800">---</span></div>
+                  <div><span className="text-gray-500 block mb-0.5">Precio c/Desc</span><span className="font-bold text-[#3ab0e2]">Variable %</span></div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* SECCIÓN 3: PORCENTAJE (SIEMPRE HABILITADO) */}

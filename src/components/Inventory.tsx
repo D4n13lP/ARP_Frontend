@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, ChevronUp, ChevronDown, Tag } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Tag, Boxes, Warehouse as WarehouseIcon, Settings, Clock, ArrowLeftRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
@@ -63,6 +63,52 @@ export default function Inventory() {
       setSortDir('asc');
     }
   }
+
+  // --- Scroll de la tabla (solo escritorio/tablet) ---
+  // Contenedor con alto máximo (scroll vertical propio, solo aparece si hace
+  // falta) + botones de flecha arriba que mueven la tabla a los lados — un
+  // control de verdad, no solo un scrollbar delgado/decorativo. Los botones
+  // solo se muestran si la tabla realmente no cabe completa a lo ancho.
+  // Puramente visual: no toca datos ni la lógica de la tabla.
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+  const [tableClientWidth, setTableClientWidth] = useState(0);
+  const [tableScrollLeft, setTableScrollLeft] = useState(0);
+
+  useEffect(() => {
+    const container = tableScrollRef.current;
+    const table = container?.querySelector('table');
+    if (!container || !table) return;
+    const measure = () => {
+      setTableScrollWidth(table.scrollWidth);
+      setTableClientWidth(container.clientWidth);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    ro.observe(table);
+    return () => ro.disconnect();
+  }, []);
+
+  const hasHorizontalOverflow = tableScrollWidth > tableClientWidth + 1;
+
+  function handleTableScroll(e: React.UIEvent<HTMLDivElement>) {
+    setTableScrollLeft(e.currentTarget.scrollLeft);
+  }
+
+  function scrollTableBy(delta: number) {
+    tableScrollRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  }
+
+  // Scrollbar visible (no la delgada/auto-oculta del sistema) en
+  // Chrome/Edge/Safari (::-webkit-scrollbar) y Firefox (scrollbar-width/color) —
+  // ayuda visual extra además de los botones.
+  const visibleScrollbar =
+    "[&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2.5 " +
+    "[&::-webkit-scrollbar-track]:bg-gray-100 " +
+    "[&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full " +
+    "[&::-webkit-scrollbar-thumb:hover]:bg-gray-500 " +
+    "[scrollbar-width:thin] [scrollbar-color:#9ca3af_#f3f4f6]";
 
   // Totales para los encabezados "Producto (N)" / "Categoría (N)", y catálogo de almacenes.
   useEffect(() => {
@@ -227,6 +273,35 @@ export default function Inventory() {
     { id: 'transferencias', label: 'Historial de transferencias' },
   ];
 
+  // Iconos de las pestañas — solo para la barra compacta de celulares (ver
+  // más abajo); la barra de escritorio/tablet sigue usando tab.label como
+  // siempre. "Ajustes" combina engrane+reloj y "Transferencias" combina
+  // reloj+flechas para diferenciar los dos historiales a simple vista.
+  function getTabIcon(tabId: string) {
+    switch (tabId) {
+      case 'general':
+        return <Boxes size={22} />;
+      case 'almacen':
+        return <WarehouseIcon size={22} />;
+      case 'ajustes':
+        return (
+          <span className="relative inline-flex">
+            <Settings size={22} />
+            <Clock size={13} strokeWidth={2.5} className="absolute -bottom-1 -right-1.5 bg-white rounded-full" />
+          </span>
+        );
+      case 'transferencias':
+        return (
+          <span className="relative inline-flex">
+            <Clock size={22} />
+            <ArrowLeftRight size={13} strokeWidth={2.5} className="absolute -bottom-1 -right-1.5 bg-white rounded-full" />
+          </span>
+        );
+      default:
+        return null;
+    }
+  }
+
   const getColumnas = () => {
     if (tabActiva === 'ajustes') {
       return [
@@ -361,8 +436,8 @@ export default function Inventory() {
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 font-sans">
       {/* Header Superior */}
-      <div className="flex justify-between items-end mb-6 max-w-7xl mx-auto px-4">
-        <div className="flex items-baseline gap-6">
+      <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-end mb-6 max-w-7xl mx-auto px-4">
+        <div className="flex flex-wrap items-baseline gap-3 md:gap-6">
           <h1 className="text-4xl font-bold text-[#e65100]">Inventario</h1>
           {tabActiva === 'almacen' ? (
             <select
@@ -379,7 +454,7 @@ export default function Inventory() {
             <h2 className="text-2xl font-normal text-gray-600">General</h2>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => navigate(ROUTES.WAREHOUSES)}
             className="bg-[#3ab0e2] text-white px-6 py-1.5 rounded text-sm font-medium hover:bg-sky-600 transition shadow-sm cursor-pointer"
@@ -398,8 +473,8 @@ export default function Inventory() {
       {/* Contenedor Principal */}
       <div className="bg-white rounded-lg shadow-lg border border-gray-200 max-w-7xl mx-auto overflow-hidden">
 
-        {/* Pestañas (Tabs) */}
-        <div className="flex border-b border-gray-200 px-4 pt-4 bg-gray-50/50">
+        {/* Pestañas (Tabs) — escritorio/tablet: exactamente como antes */}
+        <div className="hidden md:flex border-b border-gray-200 px-4 pt-4 bg-gray-50/50">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -415,7 +490,27 @@ export default function Inventory() {
           ))}
         </div>
 
-        <div className="p-8">
+        {/* Pestañas (Tabs) — celulares: mismos tabs/handler, solo iconos en
+            vez de texto (el texto largo no cabe bien en pantallas angostas). */}
+        <div className="flex md:hidden border-b border-gray-200 px-2 pt-3 bg-gray-50/50">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setTabActiva(tab.id)}
+              title={tab.label}
+              aria-label={tab.label}
+              className={`flex-1 flex items-center justify-center py-2.5 transition-all cursor-pointer ${
+                tabActiva === tab.id
+                  ? "border-t border-x border-gray-300 rounded-t-lg bg-white text-gray-800 -mb-px z-10"
+                  : "text-[#3ab0e2] hover:text-sky-700"
+              }`}
+            >
+              {getTabIcon(tab.id)}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 md:p-8">
           {/* Fila de Filtros — solo aplica a las tablas de stock */}
           {(tabActiva === 'general' || tabActiva === 'almacen') && (
             <div className="flex flex-wrap gap-4 mb-8 items-center">
@@ -424,21 +519,21 @@ export default function Inventory() {
                 placeholder="Código o ID"
                 value={filtros.codigo}
                 onChange={(e) => setFiltro('codigo', e.target.value)}
-                className="border border-gray-300 rounded px-3 py-2 w-32 focus:border-sky-400 outline-none"
+                className="border border-gray-300 rounded px-3 py-2 w-full md:w-32 focus:border-sky-400 outline-none"
               />
               <input
                 type="text"
                 placeholder="Nombre del producto"
                 value={filtros.nombre}
                 onChange={(e) => setFiltro('nombre', e.target.value)}
-                className="border border-gray-300 rounded px-3 py-2 grow focus:border-sky-400 outline-none"
+                className="border border-gray-300 rounded px-3 py-2 w-full md:grow md:w-auto focus:border-sky-400 outline-none"
               />
               <input
                 type="text"
                 placeholder="Categoría"
                 value={filtros.categoria}
                 onChange={(e) => setFiltro('categoria', e.target.value)}
-                className="border border-gray-300 rounded px-3 py-2 w-64 focus:border-sky-400 outline-none"
+                className="border border-gray-300 rounded px-3 py-2 w-full md:w-64 focus:border-sky-400 outline-none"
               />
               <button className="bg-[#3ab0e2] p-2 rounded text-white hover:bg-sky-600 transition shadow-md">
                 <Search size={22} strokeWidth={2.5} />
@@ -447,7 +542,7 @@ export default function Inventory() {
                 type="button"
                 onClick={toggleFiltroDescuento}
                 title="Mostrar solo productos con descuento"
-                className={`ml-2 flex items-center gap-2 px-4 py-2 rounded font-medium text-sm transition-colors cursor-pointer border ${
+                className={`md:ml-2 flex items-center gap-2 px-4 py-2 rounded font-medium text-sm transition-colors cursor-pointer border ${
                   filtros.descuento
                     ? 'bg-[#e2694b] border-[#e2694b] text-white'
                     : 'bg-white border-gray-300 text-gray-700 hover:border-[#e2694b] hover:text-[#e2694b]'
@@ -459,8 +554,46 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* Tabla Dinámica */}
-          <div className="border border-gray-300 rounded overflow-hidden shadow-sm mb-10">
+          {/* Tabla Dinámica — solo escritorio/tablet (>= md); en celulares se
+              reemplaza por tarjetas (ver más abajo), sin tocar nada de esta
+              tabla ni de la lógica que la alimenta.
+              - Botones de flecha arriba (control real, no solo un scrollbar)
+                para desplazar la tabla a los lados — solo se muestran cuando
+                la tabla realmente no cabe completa a lo ancho.
+              - Alto máximo con scroll vertical propio: solo aparece cuando la
+                tabla no cabe completa hacia abajo (más filas de las que caben).
+              - Scrollbar visible (no la delgada/auto-oculta del sistema) como
+                ayuda extra a los botones. */}
+          <div className="hidden md:block mb-10">
+            {hasHorizontalOverflow && (
+              <div className="flex justify-between items-center leading-none">
+                <button
+                  type="button"
+                  onClick={() => scrollTableBy(-280)}
+                  disabled={tableScrollLeft <= 0}
+                  aria-label="Desplazar tabla a la izquierda"
+                  title="Desplazar a la izquierda"
+                  className="p-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-sky-600 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-gray-100 disabled:hover:text-gray-500"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollTableBy(280)}
+                  disabled={tableScrollLeft >= tableScrollWidth - tableClientWidth - 1}
+                  aria-label="Desplazar tabla a la derecha"
+                  title="Desplazar a la derecha"
+                  className="p-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-sky-600 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-gray-100 disabled:hover:text-gray-500"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
+            <div
+              ref={tableScrollRef}
+              onScroll={handleTableScroll}
+              className={`border border-gray-300 rounded overflow-auto shadow-sm max-h-[65vh] ${visibleScrollbar}`}
+            >
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#f2f2f2] border-b border-gray-300">
@@ -469,7 +602,7 @@ export default function Inventory() {
                       key={col.key}
                       onClick={() => handleSort(col.key)}
                       title={col.key === 'opciones' ? undefined : 'Ordenar'}
-                      className={`px-4 py-2.5 text-sm font-bold border-r border-gray-300 last:border-r-0 ${
+                      className={`sticky top-0 z-10 bg-[#f2f2f2] px-4 py-2.5 text-sm font-bold border-r border-b border-gray-300 last:border-r-0 ${
                         col.key === 'opciones' ? '' : 'cursor-pointer select-none hover:bg-gray-200/70'
                       }`}
                     >
@@ -620,6 +753,188 @@ export default function Inventory() {
                 )}
               </tbody>
             </table>
+            </div>
+          </div>
+
+          {/* Tarjetas — solo celulares (< md). Mismos datos/estado/handlers que
+              la tabla de arriba, nada nuevo: solo otra forma de mostrarlos. */}
+          <div className="md:hidden flex flex-col gap-3 mb-10">
+            {/* Orden: mismo mecanismo que las flechas del encabezado de la
+                tabla (handleSort/sortKey/sortDir), solo que aquí como
+                controles compactos porque no hay encabezado de columnas. */}
+            {columnas.some((c) => c.key !== 'opciones') && (
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-gray-500 shrink-0">Ordenar por:</span>
+                <select
+                  value={sortKey ?? ''}
+                  onChange={(e) => e.target.value && handleSort(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white grow focus:border-sky-400 outline-none"
+                >
+                  <option value="">Sin ordenar</option>
+                  {columnas.filter((c) => c.key !== 'opciones').map((c) => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
+                {sortKey && (
+                  <button
+                    type="button"
+                    onClick={() => handleSort(sortKey)}
+                    title="Invertir orden"
+                    className="border border-gray-300 rounded p-1.5 bg-white text-gray-500 hover:text-sky-600 cursor-pointer shrink-0"
+                  >
+                    {sortDir === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {(tabActiva === 'general' || tabActiva === 'almacen') && (
+              productosOrdenados.length > 0 ? productosOrdenados.map((prod) => (
+                <div key={prod.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-gray-900 text-base leading-tight truncate">{prod.nombre}</h3>
+                      <span className="text-xs text-gray-500">{prod.categoria || 'Sin categoría'}</span>
+                    </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-semibold ${prod.estado === 'Agotado' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {prod.estado}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Cantidad disponible</span>
+                      {editingRowID === prod.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            autoFocus
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') requestQuantityChange(prod);
+                              if (e.key === 'Escape') cancelEditing();
+                            }}
+                            className="w-16 border border-sky-400 rounded px-1.5 py-1 text-center outline-none"
+                          />
+                          <button onClick={() => requestQuantityChange(prod)} className="text-emerald-600 hover:text-emerald-800 font-bold px-1 cursor-pointer">
+                            OK
+                          </button>
+                          <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-600 text-base leading-none px-1 cursor-pointer">
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          onClick={() => startEditing(prod)}
+                          className={`font-semibold text-gray-800 ${canEditInventory && prod.inventoryID ? 'cursor-pointer hover:text-sky-600' : ''}`}
+                        >
+                          {prod.stock}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Pendientes</span>
+                      <span className="font-semibold text-gray-800">{prod.pendientes}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500 block mb-0.5">Almacén</span>
+                      {canEditInventory ? (
+                        <select
+                          value={prod.whID}
+                          onChange={(e) => requestWarehouseChange(prod, e.target.value)}
+                          disabled={savingWarehouse || !!warehouseModeStep || !!confirmWarehouseChange}
+                          title={!prod.inventoryID ? 'Asignar almacén' : 'Cambiar de almacén'}
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white cursor-pointer focus:border-sky-400 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {!prod.whID && <option value="">Sin asignar</option>}
+                          {warehouses.map((w) => (
+                            <option key={w.whID} value={w.whID}>{w.whname}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="font-semibold text-gray-800">{prod.almacen || 'Sin asignar'}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => prod.product && openModal(prod.product)}
+                    disabled={!prod.product}
+                    className="w-full py-2 bg-sky-50 text-sky-700 font-medium text-xs rounded-lg active:bg-sky-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Ver detalles del producto
+                  </button>
+                </div>
+              )) : (
+                <p className="text-center text-gray-400 text-sm py-6">No hay productos que mostrar.</p>
+              )
+            )}
+
+            {tabActiva === 'ajustes' && (
+              adjustmentsOrdenados.length > 0 ? adjustmentsOrdenados.map((adj) => (
+                <div key={adj.adjustID} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base leading-tight">{adj.product?.productName}</h3>
+                    <span className="text-xs text-gray-500">{adj.product?.category?.categoryName}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Disponible antes</span>
+                      <span className="font-semibold text-gray-800">{adj.availableBefore}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Pendiente antes</span>
+                      <span className="font-semibold text-gray-800">{adj.outstandingDeliveryBefore}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Cantidad ajustada</span>
+                      <span className="font-semibold text-gray-800">
+                        {adj.quantityTransferred != null && adj.quantityTransferred > 0 ? `+${adj.quantityTransferred}` : adj.quantityTransferred}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Fecha de ajuste</span>
+                      <span className="font-semibold text-gray-800">{formatDateTimeMX(adj.adjustmentDate)}</span>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-center text-gray-400 text-sm py-6">No hay ajustes que mostrar.</p>
+              )
+            )}
+
+            {tabActiva === 'transferencias' && (
+              adjustmentsOrdenados.length > 0 ? adjustmentsOrdenados.map((adj) => (
+                <div key={adj.adjustID} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base leading-tight">{adj.product?.productName}</h3>
+                    <span className="text-xs text-gray-500">{adj.product?.category?.categoryName}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Almacen de origen</span>
+                      <span className="font-semibold text-gray-800">{adj.sourceWarehouse?.whname}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Almacen destino</span>
+                      <span className="font-semibold text-gray-800">{adj.destinationWarehouse?.whname}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Cantidad</span>
+                      <span className="font-semibold text-gray-800">{adj.quantityTransferred}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Fecha de transferencia</span>
+                      <span className="font-semibold text-gray-800">{formatDateTimeMX(adj.adjustmentDate)}</span>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-center text-gray-400 text-sm py-6">No hay transferencias que mostrar.</p>
+              )
+            )}
           </div>
         </div>
       </div>

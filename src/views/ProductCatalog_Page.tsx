@@ -169,10 +169,11 @@ export default function ProductCatalog_Page() {
     <div className="min-h-screen bg-white py-4 md:py-8 animate-fade-in">
       
       {/* HEADER ALINEADO */}
-      <header className="max-w-[1600px] mx-auto px-2 md:px-6 mb-12 relative flex items-center justify-center">
-        
-        {/* Contenedor del Logo y Botón Regresar */}
-        <div className="absolute left-2 md:left-6 flex items-center gap-4">
+      <header className="max-w-[1600px] mx-auto px-2 md:px-6 mb-12 relative flex items-center justify-center max-lg:portrait:flex-col max-lg:portrait:gap-4">
+
+        {/* Contenedor del Logo y Botón Regresar — en celular vertical se saca
+            del position:absolute para que no se encime con el título de abajo. */}
+        <div className="absolute left-2 md:left-6 flex items-center gap-4 max-lg:portrait:static max-lg:portrait:self-start">
           <button 
             type="button"
             onClick={() => navigate(-1)} 
@@ -188,10 +189,10 @@ export default function ProductCatalog_Page() {
 
           <div className="h-10 w-[1px] bg-gray-200 hidden md:block"></div>
 
-          <img 
-            src={logoEmpresa} 
-            alt="Logo" 
-            className="h-12 md:h-16 object-contain hidden sm:block" 
+          <img
+            src={logoEmpresa}
+            alt="Logo"
+            className="h-12 md:h-16 object-contain max-lg:portrait:hidden"
           />
 
           {/* Colocamos el componente aquí. 

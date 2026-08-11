@@ -36,12 +36,14 @@ export default function Deliverymen_Page() {
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
       
       {/* Header */}
-      <div className="w-full max-w-6xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem]">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
-          <img 
-            src={logoEmpresa} 
-            alt="Logo Empresa" 
-            className="h-20 w-auto object-contain" 
+      <div className="w-full max-w-6xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem] max-lg:portrait:flex-col max-lg:portrait:gap-4">
+        {/* Back Button and Logo (Left) — en celular vertical se saca del
+            position:absolute para que no se encime con el título de abajo. */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6 max-lg:portrait:static max-lg:portrait:translate-y-0 max-lg:portrait:self-start">
+          <img
+            src={logoEmpresa}
+            alt="Logo Empresa"
+            className="h-20 w-auto object-contain max-lg:portrait:hidden"
           />
           <button 
             onClick={() => navigate(-1)} 

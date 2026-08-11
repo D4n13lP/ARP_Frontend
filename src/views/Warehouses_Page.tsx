@@ -64,12 +64,14 @@ export default function Warehouses_Page() {
     <div className="min-h-screen bg-white flex flex-col font-sans animate-fade-in">
       {/* HEADER: igual que Clients_Page */}
       <header className="relative py-6 mb-8 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center items-center h-16">
-          <div className="absolute left-4 sm:left-6 lg:left-8 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center items-center h-16 max-lg:portrait:h-auto max-lg:portrait:flex-col max-lg:portrait:gap-4">
+          {/* en celular vertical se saca del position:absolute para que no se
+              encime con el título de abajo. */}
+          <div className="absolute left-4 sm:left-6 lg:left-8 flex items-center gap-4 max-lg:portrait:static max-lg:portrait:self-start">
             <img
               src={logoEmpresa}
               alt="Logo Empresa"
-              className="h-16 md:h-20 object-contain"
+              className="h-16 md:h-20 object-contain max-lg:portrait:hidden"
             />
             <button
               onClick={() => navigate(ROUTES.INVENTORY)}
@@ -120,8 +122,8 @@ export default function Warehouses_Page() {
           </button>
         </div>
 
-        {/* TABLA DE ALMACENES */}
-        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+        {/* TABLA DE ALMACENES — escritorio/tablet (>= md), intacta */}
+        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm hidden md:block">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-100 text-gray-700 uppercase text-xs font-bold">
               <tr>
@@ -156,6 +158,31 @@ export default function Warehouses_Page() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Tarjetas — celulares (< md). Mismos datos/handler que la tabla. */}
+        <div className="md:hidden flex flex-col gap-3">
+          {almacenes.map((almacen) => (
+            <div key={almacen.whID} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-900 text-base leading-tight truncate">{almacen.whname}</h3>
+                <span className="text-xs text-gray-500">{almacen.whaddress || '---'}</span>
+              </div>
+              {!whIDsConProductos.has(almacen.whID) && (
+                <button
+                  onClick={() => handleEliminar(almacen.whID)}
+                  className="shrink-0 text-red-500 hover:text-red-700 cursor-pointer font-bold text-sm transition-colors"
+                >
+                  Eliminar
+                </button>
+              )}
+            </div>
+          ))}
+          {!loading && almacenes.length === 0 && (
+            <p className="p-12 text-center text-gray-400 italic bg-gray-50/50 rounded-xl">
+              No hay almacenes registrados todavía.
+            </p>
+          )}
         </div>
       </main>
     </div>

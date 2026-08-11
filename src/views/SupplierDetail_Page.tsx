@@ -164,7 +164,7 @@ export default function SupplierDetail_Page() {
       <div className="max-w-6xl mx-auto mt-20">
         <h3 className="text-3xl font-bold text-gray-800 mb-8 italic">Productos</h3>
         
-        <div className="border border-gray-300 rounded shadow-sm overflow-hidden bg-white">
+        <div className="border border-gray-300 rounded shadow-sm overflow-hidden bg-white hidden md:block">
           <table className="w-full text-left text-sm border-collapse">
             <thead className="bg-gray-100 text-gray-700 font-bold">
               <tr className="divide-x divide-gray-300">
@@ -199,6 +199,32 @@ export default function SupplierDetail_Page() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Tarjetas — celulares (< md). Mismos datos/handler que la tabla. */}
+        <div className="md:hidden flex flex-col gap-3">
+          {associatedProducts.length === 0 ? (
+            <p className="px-6 py-8 text-center text-gray-400 italic bg-white border border-gray-200 rounded-xl">
+              Este proveedor no tiene productos asociados.
+            </p>
+          ) : associatedProducts.map((prod) => (
+            <div key={prod.prodCode} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base leading-tight">{prod.productName}</h3>
+                <span className="text-xs text-gray-500 font-mono">{prod.prodCode}</span>
+              </div>
+              <div className="text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                <span className="text-gray-500 block mb-0.5">Categoría</span>
+                <span className="font-semibold text-gray-800">{prod.category?.categoryName || '---'}</span>
+              </div>
+              <button
+                onClick={() => handleViewProduct(prod)}
+                className="w-full py-2 bg-sky-50 text-[#3ab0e2] font-bold text-xs rounded-lg active:bg-sky-100 cursor-pointer"
+              >
+                Ver producto
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 

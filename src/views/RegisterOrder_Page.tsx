@@ -150,7 +150,7 @@ export default function RegisterOrder_Page() {
       <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-20">
 
         {/* LOGO */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 max-lg:portrait:hidden">
           <img
             src={logoEmpresa}
             alt="LogoEmpresa"

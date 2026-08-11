@@ -293,7 +293,7 @@ export default function ClientsPage() {
           <img
             src={logoEmpresa}
             alt="Logo Empresa"
-            className="absolute left-4 sm:left-6 lg:left-8 h-16 md:h-20 object-contain"
+            className="absolute left-4 sm:left-6 lg:left-8 h-16 md:h-20 object-contain max-lg:portrait:hidden"
           />
           <h1 className="text-4xl md:text-5xl font-normal text-[#e65100] tracking-tight text-center">
             Clientes
@@ -369,8 +369,8 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        {/* 5. TABLA DE RESULTADOS */}
-        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+        {/* 5. TABLA DE RESULTADOS — escritorio/tablet (>= md), intacta */}
+        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm hidden md:block">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-100 text-gray-700 uppercase text-xs font-bold">
               <tr>
@@ -424,6 +424,47 @@ export default function ClientsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Tarjetas — celulares (< md). Mismos datos/handlers que la tabla. */}
+        <div className="md:hidden flex flex-col gap-3">
+          {displayedClientes.length === 0 ? (
+            <p className="p-12 text-center text-gray-400 italic bg-gray-50/50 rounded-xl">
+              No se encontraron registros que coincidan con la búsqueda.
+            </p>
+          ) : displayedClientes.map((cliente) => (
+            <div key={cliente.clientCode} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base leading-tight">{cliente.clientName}</h3>
+                <span className="text-[10px] text-gray-400 font-mono">{cliente.clientCode}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                <div><span className="text-gray-500 block mb-0.5">Teléfono 1</span><span className="font-semibold text-gray-800">{cliente.clientPhone1}</span></div>
+                <div><span className="text-gray-500 block mb-0.5">RFC</span><span className="font-semibold text-gray-800">{cliente.RFC || '---'}</span></div>
+                <div className="col-span-2"><span className="text-gray-500 block mb-0.5">Correo electrónico</span><span className="font-semibold text-gray-800">{cliente.email || '---'}</span></div>
+              </div>
+              <button
+                onClick={() => navigate(`/clients/history/${cliente.clientCode}`)}
+                className="w-full flex items-center justify-center gap-1 py-2 bg-sky-50 text-[#3ab0e2] font-semibold text-xs rounded-lg active:bg-sky-100 cursor-pointer"
+              >
+                <ReceiptText size={14} /> Consultar historial
+              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => startEdit(cliente)}
+                  className="flex-1 py-2 bg-amber-50 text-amber-600 font-bold text-xs rounded-lg active:bg-amber-100 cursor-pointer"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(cliente.clientCode)}
+                  className="flex-1 py-2 bg-red-50 text-red-600 font-bold text-xs rounded-lg active:bg-red-100 cursor-pointer"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* 6. BOTÓN CARGAR MÁS (DINÁMICO) */}

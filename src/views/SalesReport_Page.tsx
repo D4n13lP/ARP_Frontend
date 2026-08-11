@@ -6,31 +6,10 @@ import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getClienteNombre, formatMoney } from '../utils/orderDisplay';
 import type { Transaction } from '../types';
 
-interface DateParts {
-  mm: string;
-  dd: string;
-  aaaa: string;
-}
-
-// Arma "YYYY-MM-DD" a partir de los 3 campos sueltos y valida que sea una
-// fecha real (rechaza cosas como 31 de febrero, que Date normalmente
-// "arregla" corriéndola a marzo en silencio).
-function toISODate(parts: DateParts): string | null {
-  const mm = parts.mm.padStart(2, '0');
-  const dd = parts.dd.padStart(2, '0');
-  const aaaa = parts.aaaa;
-  if (!/^\d{2}$/.test(mm) || !/^\d{2}$/.test(dd) || !/^\d{4}$/.test(aaaa)) return null;
-  const iso = `${aaaa}-${mm}-${dd}`;
-  const check = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(check.getTime())) return null;
-  if (check.getUTCFullYear() !== Number(aaaa) || check.getUTCMonth() + 1 !== Number(mm) || check.getUTCDate() !== Number(dd)) return null;
-  return iso;
-}
-
 export default function SalesReport_Page() {
-  // --- ESTADOS DE FECHAS ---
-  const [fechaInicio, setFechaInicio] = useState<DateParts>({ mm: '', dd: '', aaaa: '' });
-  const [fechaFin, setFechaFin] = useState<DateParts>({ mm: '', dd: '', aaaa: '' });
+  // --- ESTADOS DE FECHAS --- ("YYYY-MM-DD", igual que en OrdersReports_Page)
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
   const [isReporteDia, setIsReporteDia] = useState(false);
 
   // --- ESTADOS DE VISTA Y USUARIO ---
@@ -69,24 +48,21 @@ export default function SalesReport_Page() {
   useEffect(() => {
     if (isReporteDia) {
       const hoy = new Date();
-      const actual = {
-        mm: String(hoy.getMonth() + 1).padStart(2, '0'),
-        dd: String(hoy.getDate()).padStart(2, '0'),
-        aaaa: String(hoy.getFullYear())
-      };
-      setFechaInicio(actual);
-      setFechaFin(actual);
+      const y = hoy.getFullYear();
+      const m = String(hoy.getMonth() + 1).padStart(2, '0');
+      const d = String(hoy.getDate()).padStart(2, '0');
+      const iso = `${y}-${m}-${d}`;
+      setFechaInicio(iso);
+      setFechaFin(iso);
     }
   }, [isReporteDia]);
 
   const handleGenerateReport = async () => {
-    const inicioISO = toISODate(fechaInicio);
-    const finISO = toISODate(fechaFin);
-    if (!inicioISO || !finISO) {
-      alert('Ingresa una fecha de inicio y de fin válidas (día, mes y año).');
+    if (!fechaInicio || !fechaFin) {
+      alert('Por favor selecciona la fecha de inicio y la fecha de fin.');
       return;
     }
-    if (inicioISO > finISO) {
+    if (fechaInicio > fechaFin) {
       alert('La fecha de inicio no puede ser mayor que la fecha de fin.');
       return;
     }
@@ -97,7 +73,7 @@ export default function SalesReport_Page() {
       // transactionDate es "YYYY-MM-DD": comparar como texto es seguro y
       // evita cualquier lío de zona horaria al construir un Date.
       const enRango = all.filter((sale) => {
-        if (!sale.transactionDate || sale.transactionDate < inicioISO || sale.transactionDate > finISO) return false;
+        if (!sale.transactionDate || sale.transactionDate < fechaInicio || sale.transactionDate > fechaFin) return false;
         if (vendedorSeleccionado === 'Todos') return true;
         return getVendedorName(sale) === vendedorSeleccionado;
       });
@@ -112,8 +88,8 @@ export default function SalesReport_Page() {
 
   const handleReset = () => {
     setViewState('form');
-    setFechaInicio({ mm: '', dd: '', aaaa: '' });
-    setFechaFin({ mm: '', dd: '', aaaa: '' });
+    setFechaInicio('');
+    setFechaFin('');
     setIsReporteDia(false);
     setVendedorSeleccionado('Todos');
     setSales([]);
@@ -167,7 +143,7 @@ export default function SalesReport_Page() {
             <img
               src={logoEmpresa}
               alt="Logo"
-              className="h-20 w-auto object-contain"
+              className="h-20 w-auto object-contain max-lg:portrait:hidden"
             />
           </div>
           <div className="flex items-center gap-4 text-[#e2694b]">
@@ -198,7 +174,8 @@ export default function SalesReport_Page() {
 
           {/* Columna Derecha: Tabla de productos */}
           <div className="w-full md:w-2/3 flex flex-col items-end">
-            <div className="w-full border border-gray-300 rounded overflow-hidden">
+            {/* Escritorio/tablet (>= md), intacta */}
+            <div className="w-full border border-gray-300 rounded overflow-hidden hidden md:block">
               <table className="w-full text-center text-sm md:text-base border-collapse text-gray-800">
                 <thead className="bg-[#f2f2f2] font-semibold text-gray-800">
                   <tr>
@@ -223,6 +200,21 @@ export default function SalesReport_Page() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Tarjetas — celulares (< md) */}
+            <div className="w-full md:hidden flex flex-col gap-2">
+              {selectedSale.details && selectedSale.details.length > 0 ? selectedSale.details.map((item) => (
+                <div key={item.transDetailID} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center gap-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="font-bold text-gray-900 truncate">{item.product?.productName}</div>
+                    <div className="text-xs text-gray-500">{item.quantity} × {formatMoney(item.unitPrice)}</div>
+                  </div>
+                  <div className="shrink-0 font-semibold text-gray-800">{formatMoney(item.subtotal)}</div>
+                </div>
+              )) : (
+                <p className="text-gray-400 italic text-center py-4">Sin productos registrados.</p>
+              )}
             </div>
 
             <div className="mt-8 text-xl font-medium text-gray-800 self-end mr-4">
@@ -251,7 +243,7 @@ export default function SalesReport_Page() {
           <img
             src={logoEmpresa}
             alt="Logo"
-            className="h-20 w-auto object-contain"
+            className="h-20 w-auto object-contain max-lg:portrait:hidden"
           />
         </div>
         <div className="flex items-center gap-4 text-[#e2694b]">
@@ -276,22 +268,26 @@ export default function SalesReport_Page() {
         {/* CONTENEDOR FECHAS Y BOTONES */}
         <div className={`w-full flex ${viewState === 'table' || viewState === 'sellers' ? 'justify-between items-center px-10 max-w-4xl' : 'flex-col items-center gap-6'}`}>
 
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-4">
-              <span className="w-12 font-medium text-gray-800">Inicio</span>
-              <div className="flex gap-2">
-                <input disabled={viewState === 'table' || viewState === 'sellers'} type="text" placeholder="MM" className="w-16 p-2 border border-gray-300 bg-white rounded text-center outline-none focus:border-[#3ab0e2] disabled:opacity-60" value={fechaInicio.mm} onChange={(e) => setFechaInicio({...fechaInicio, mm: e.target.value})} />
-                <input disabled={viewState === 'table' || viewState === 'sellers'} type="text" placeholder="DD" className="w-16 p-2 border border-gray-300 bg-white rounded text-center outline-none focus:border-[#3ab0e2] disabled:opacity-60" value={fechaInicio.dd} onChange={(e) => setFechaInicio({...fechaInicio, dd: e.target.value})} />
-                <input disabled={viewState === 'table' || viewState === 'sellers'} type="text" placeholder="AAAA" className="w-24 p-2 border border-gray-300 bg-white rounded text-center outline-none focus:border-[#3ab0e2] disabled:opacity-60" value={fechaInicio.aaaa} onChange={(e) => setFechaInicio({...fechaInicio, aaaa: e.target.value})} />
-              </div>
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center gap-6">
+              <label className="w-12 font-medium text-gray-800">Inicio</label>
+              <input
+                type="date"
+                disabled={viewState === 'table' || viewState === 'sellers'}
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-[#3ab0e2] text-gray-700 bg-white disabled:opacity-60"
+              />
             </div>
-            <div className="flex items-center gap-4">
-              <span className="w-12 font-medium text-gray-800">Fin</span>
-              <div className="flex gap-2">
-                <input disabled={viewState === 'table' || viewState === 'sellers'} type="text" placeholder="MM" className="w-16 p-2 border border-gray-300 bg-white rounded text-center outline-none focus:border-[#3ab0e2] disabled:opacity-60" value={fechaFin.mm} onChange={(e) => setFechaFin({...fechaFin, mm: e.target.value})} />
-                <input disabled={viewState === 'table' || viewState === 'sellers'} type="text" placeholder="DD" className="w-16 p-2 border border-gray-300 bg-white rounded text-center outline-none focus:border-[#3ab0e2] disabled:opacity-60" value={fechaFin.dd} onChange={(e) => setFechaFin({...fechaFin, dd: e.target.value})} />
-                <input disabled={viewState === 'table' || viewState === 'sellers'} type="text" placeholder="AAAA" className="w-24 p-2 border border-gray-300 bg-white rounded text-center outline-none focus:border-[#3ab0e2] disabled:opacity-60" value={fechaFin.aaaa} onChange={(e) => setFechaFin({...fechaFin, aaaa: e.target.value})} />
-              </div>
+            <div className="flex items-center gap-6">
+              <label className="w-12 font-medium text-gray-800">Fin</label>
+              <input
+                type="date"
+                disabled={viewState === 'table' || viewState === 'sellers'}
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                className="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-[#3ab0e2] text-gray-700 bg-white disabled:opacity-60"
+              />
             </div>
           </div>
 
@@ -354,9 +350,9 @@ export default function SalesReport_Page() {
           </div>
         )}
 
-        {/* TABLA DE RESULTADOS */}
+        {/* TABLA DE RESULTADOS — escritorio/tablet (>= md), intacta */}
         {viewState === 'table' && (
-          <div className="w-full overflow-x-auto mt-12 px-2 animate-fade-in">
+          <div className="w-full overflow-x-auto mt-12 px-2 animate-fade-in hidden md:block">
             <table className="w-full border-collapse text-sm text-center text-gray-700 border border-gray-300">
               <thead className="bg-[#f2f2f2] text-gray-800 font-semibold border-b border-gray-300 uppercase text-xs">
                 <tr>
@@ -399,22 +395,58 @@ export default function SalesReport_Page() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
 
-            {/* SUMA DEL PERIODO */}
-            <div className="w-full flex justify-end mt-6 pr-4">
-              <div className="flex gap-4 items-center">
-                <span className="text-gray-700 font-medium text-lg">Total de ventas del periodo:</span>
-                <span className="text-xl font-semibold text-gray-800">
-                  {formatMoney(calcularTotalPeriodo())}
-                </span>
+        {/* Tarjetas — celulares (< md) */}
+        {viewState === 'table' && (
+          <div className="w-full mt-12 px-2 animate-fade-in md:hidden flex flex-col gap-3">
+            {sales.length === 0 ? (
+              <p className="text-center text-gray-400 italic py-8">No hay ventas en ese periodo.</p>
+            ) : sales.map((sale) => (
+              <div key={sale.transactionID} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-900 text-base leading-tight truncate">{getClienteNombre(sale)}</h3>
+                    <span className="text-xs text-gray-500">Folio {sale.folio}</span>
+                  </div>
+                  <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-semibold ${sale.outstandingAmount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {sale.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                  <div><span className="text-gray-500 block mb-0.5">Fecha pedido</span><span className="font-semibold text-gray-800">{formatDateOnly(sale.transactionDate)}</span></div>
+                  <div><span className="text-gray-500 block mb-0.5">Fecha entrega</span><span className="font-semibold text-gray-800">{formatDeliveryDate(sale)}</span></div>
+                  <div><span className="text-gray-500 block mb-0.5">Vendedor</span><span className="font-semibold text-gray-800">{getVendedorName(sale)}</span></div>
+                  <div><span className="text-gray-500 block mb-0.5">Importe total</span><span className="font-semibold text-gray-800">{formatMoney(sale.finalAmount)}</span></div>
+                </div>
+                <button
+                  onClick={() => handleViewDetail(sale.transactionID)}
+                  disabled={loadingDetail}
+                  className="w-full py-2 bg-gray-50 text-gray-700 font-medium text-xs rounded-lg active:bg-gray-100 cursor-pointer disabled:opacity-50"
+                >
+                  Ver detalle
+                </button>
               </div>
+            ))}
+          </div>
+        )}
+
+        {/* SUMA DEL PERIODO — se muestra en ambas versiones */}
+        {viewState === 'table' && (
+          <div className="w-full flex justify-end mt-6 pr-4 px-2">
+            <div className="flex gap-4 items-center">
+              <span className="text-gray-700 font-medium text-lg">Total de ventas del periodo:</span>
+              <span className="text-xl font-semibold text-gray-800">
+                {formatMoney(calcularTotalPeriodo())}
+              </span>
             </div>
           </div>
         )}
 
-        {/* TABLA DE VENDEDORES (MEJORES VENDEDORES) */}
+        {/* TABLA DE VENDEDORES (MEJORES VENDEDORES) — escritorio/tablet (>= md), intacta */}
         {viewState === 'sellers' && (
-          <div className="w-full overflow-x-auto mt-12 px-2 max-w-4xl animate-fade-in">
+          <div className="w-full overflow-x-auto mt-12 px-2 max-w-4xl animate-fade-in hidden md:block">
             <table className="w-full border-collapse text-sm text-center text-gray-700 border border-gray-300">
               <thead className="bg-[#f2f2f2] text-gray-800 font-semibold border-b border-gray-300 uppercase text-xs">
                 <tr>
@@ -439,6 +471,21 @@ export default function SalesReport_Page() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Tarjetas — celulares (< md) */}
+        {viewState === 'sellers' && (
+          <div className="w-full mt-12 px-2 max-w-4xl animate-fade-in md:hidden flex flex-col gap-2">
+            {getTopVendedores().length === 0 ? (
+              <p className="text-center text-gray-400 italic py-8">No hay ventas en ese periodo.</p>
+            ) : getTopVendedores().map((vendedor) => (
+              <div key={vendedor.vendedor} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 text-sm">
+                <span className="shrink-0 w-8 h-8 rounded-full bg-gray-100 text-gray-700 font-bold flex items-center justify-center">{vendedor.posicion}</span>
+                <span className="flex-1 font-medium text-gray-900 truncate">{vendedor.vendedor}</span>
+                <span className="shrink-0 font-semibold text-gray-800">{vendedor.totalFormat}</span>
+              </div>
+            ))}
           </div>
         )}
 

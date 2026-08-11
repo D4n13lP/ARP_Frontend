@@ -58,12 +58,14 @@ export default function ClientHistory_Page() {
   return (
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
       {/* Header */}
-      <div className="w-full max-w-6xl mb-10 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-20">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
+      <div className="w-full max-w-6xl mb-10 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-20 max-lg:portrait:flex-col max-lg:portrait:gap-4">
+        {/* en celular vertical se saca del position:absolute para que no se
+            encime con el título de abajo. */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6 max-lg:portrait:static max-lg:portrait:translate-y-0 max-lg:portrait:self-start">
           <img
             src={logoEmpresa}
             alt="Logo Empresa"
-            className="h-20 w-auto object-contain"
+            className="h-20 w-auto object-contain max-lg:portrait:hidden"
           />
           <button
             onClick={() => navigate(-1)}
@@ -87,8 +89,8 @@ export default function ClientHistory_Page() {
       ) : (
         <div className="w-full max-w-6xl flex flex-col gap-8 px-4">
 
-          {/* Client Info Table */}
-          <div className="w-full border border-gray-300 rounded overflow-hidden shadow-sm">
+          {/* Client Info Table — escritorio/tablet (>= md), intacta */}
+          <div className="w-full border border-gray-300 rounded overflow-hidden shadow-sm hidden md:block">
             <table className="w-full text-center text-sm md:text-base border-collapse text-gray-800">
               <thead className="text-white font-semibold" style={{ backgroundColor: '#5d0e00' }}>
                 <tr>
@@ -111,6 +113,20 @@ export default function ClientHistory_Page() {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* Tarjeta — celulares (< md) */}
+          <div className="w-full border border-gray-300 rounded-xl shadow-sm p-4 md:hidden space-y-3" style={{ backgroundColor: '#fdf6f0' }}>
+            <div>
+              <h3 className="font-bold text-gray-900 text-base leading-tight">{clientData?.clientName || 'Desconocido'}</h3>
+              <span className="text-xs text-gray-500 font-mono">{clientData?.clientCode || id || 'N/A'}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs bg-white p-2.5 rounded-lg border border-gray-200">
+              <div><span className="text-gray-500 block mb-0.5">RFC</span><span className="font-semibold text-gray-800">{clientData?.RFC || 'N/A'}</span></div>
+              <div><span className="text-gray-500 block mb-0.5">Teléfono 1</span><span className="font-semibold text-gray-800">{clientData?.clientPhone1 || 'N/A'}</span></div>
+              <div><span className="text-gray-500 block mb-0.5">Teléfono 2</span><span className="font-semibold text-gray-800">{clientData?.clientPhone2 || '-'}</span></div>
+              <div className="col-span-2"><span className="text-gray-500 block mb-0.5">Correo electrónico</span><span className="font-semibold text-gray-800">{clientData?.email || 'N/A'}</span></div>
+            </div>
           </div>
 
           {/* Filter & Results Count */}
@@ -140,7 +156,7 @@ export default function ClientHistory_Page() {
                 <span className="font-bold text-gray-800 text-sm mb-2">
                   {formatDateOnly(purchase.transactionDate)}{purchase.folio ? ` · Folio ${purchase.folio}` : ''}
                 </span>
-                <div className="w-full border border-gray-300 rounded overflow-hidden shadow-sm">
+                <div className="w-full border border-gray-300 rounded overflow-hidden shadow-sm hidden md:block">
                   <table className="w-full text-center text-sm md:text-base border-collapse text-gray-800">
                     <thead className="bg-[#f2f2f2] text-gray-800 font-semibold border-b border-gray-300">
                       <tr>
@@ -161,6 +177,19 @@ export default function ClientHistory_Page() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Tarjetas — celulares (< md) */}
+                <div className="w-full md:hidden flex flex-col gap-2">
+                  {(purchase.details || []).map((detail) => (
+                    <div key={detail.transDetailID} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center gap-3 text-sm">
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 truncate">{detail.product?.productName || '—'}</div>
+                        <div className="text-xs text-gray-500">{detail.quantity} × {formatMoney(detail.subtotal / detail.quantity)}</div>
+                      </div>
+                      <div className="shrink-0 font-semibold text-gray-800">{formatMoney(detail.subtotal)}</div>
+                    </div>
+                  ))}
                 </div>
                 <div className="w-full flex justify-end mt-4 pr-2">
                   <span className="font-bold text-gray-800">

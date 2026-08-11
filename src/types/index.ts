@@ -143,6 +143,19 @@ export const PaymentHistorySchema = z.object({
 });
 export type PaymentHistory = z.infer<typeof PaymentHistorySchema>;
 
+// Retiro de efectivo de caja (Retiros_Page). "cash" (individual) no se usa
+// en ningún flujo todavía — el saldo disponible se calcula en el cliente a
+// partir de paymentHistory (pagos en efectivo) menos lo ya retirado aquí.
+export const TotalCashSchema = z.object({
+  totalCashID: z.string(),
+  withdrawalAmount: z.coerce.number(),
+  withdrawalDate: z.coerce.date().nullable().optional(),
+  createdAt: z.coerce.date().nullable().optional(),
+  ownUserID: z.string().nullable().optional(),
+  adminUserID: z.string().nullable().optional(),
+});
+export type TotalCash = z.infer<typeof TotalCashSchema>;
+
 export const TransDetailSchema = z.object({
   transDetailID: z.string(),
   quantity: z.coerce.number(),

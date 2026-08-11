@@ -12,7 +12,7 @@ export default function AddProducts_Page() {
         <img
           src={logoEmpresa}
           alt="Acabados Rusticos Piramides"
-          className="h-16 md:h-20 object-contain"
+          className="h-16 md:h-20 object-contain max-lg:portrait:hidden"
         />
 
         <div className="mt-8 flex items-center justify-center gap-4 text-[#e65100]">

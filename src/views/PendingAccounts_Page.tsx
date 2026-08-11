@@ -61,9 +61,11 @@ export default function PendingAccounts_Page() {
     <div className="min-h-screen bg-white p-6 md:p-10 animate-fade-in flex flex-col items-center">
 
       {/* Header */}
-      <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem]">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6">
-          <img src={logoEmpresa} alt="Logo Empresa" className="h-20 w-auto object-contain" />
+      <div className="w-full max-w-7xl mb-12 border-b border-gray-200 pb-8 relative flex items-center justify-center min-h-[5rem] max-lg:portrait:flex-col max-lg:portrait:gap-4">
+        {/* en celular vertical se saca del position:absolute para que no se
+            encime con el título de abajo. */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-6 max-lg:portrait:static max-lg:portrait:translate-y-0 max-lg:portrait:self-start">
+          <img src={logoEmpresa} alt="Logo Empresa" className="h-20 w-auto object-contain max-lg:portrait:hidden" />
           <button
             onClick={() => navigate(ROUTES.ACCOUNT_SWITCH)}
             className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-6 py-2 rounded shadow-sm transition-colors text-sm font-medium cursor-pointer"
@@ -86,7 +88,7 @@ export default function PendingAccounts_Page() {
         ) : pending.length === 0 ? (
           <p className="text-gray-500">No hay cuentas pendientes de aprobación.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 hidden md:block">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
@@ -124,6 +126,38 @@ export default function PendingAccounts_Page() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Tarjetas — celulares (< md). Mismos datos/handlers. */}
+        {!loading && pending.length > 0 && (
+          <div className="md:hidden flex flex-col gap-3">
+            {pending.map((u) => (
+              <div key={u.userID} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base leading-tight">{u.userName}</h3>
+                  <span className="text-xs text-gray-500">{u.email}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleAccept(u)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Aceptar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setRejectTarget(u)}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
