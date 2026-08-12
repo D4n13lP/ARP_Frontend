@@ -276,8 +276,12 @@ export default function SalesReport_Page() {
               : 'Ventas del periodo'}
         </h2>
 
-        {/* CONTENEDOR FECHAS Y BOTONES */}
-        <div className={`w-full flex ${viewState === 'table' || viewState === 'sellers' ? 'justify-between items-center px-10 max-w-4xl' : 'flex-col items-center gap-6'}`}>
+        {/* CONTENEDOR FECHAS Y BOTONES — en celular, tanto "table" (Ver
+            vendedores/Reiniciar) como "sellers" (Regresar) se apilan: primero
+            las fechas y abajo el/los botón(es); desde md+ se mantiene intacta
+            la fila original (fechas a la izquierda, botones a la derecha) en
+            ambos casos. "form" no se toca. */}
+        <div className={`w-full flex ${viewState === 'table' || viewState === 'sellers' ? 'flex-col items-center gap-6 md:flex-row md:justify-between md:items-center md:px-10 md:max-w-4xl' : 'flex-col items-center gap-6'}`}>
 
           <div className="flex flex-col gap-6">
             <div className="flex items-center gap-6">
@@ -303,7 +307,7 @@ export default function SalesReport_Page() {
           </div>
 
           {viewState === 'table' && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-row gap-3 md:flex-col">
               <button onClick={handleViewSellers} className="bg-[#16A085] hover:bg-emerald-500 text-white px-6 py-2 shadow-sm rounded text-sm transition-colors cursor-pointer">
                 Ver vendedores
               </button>
