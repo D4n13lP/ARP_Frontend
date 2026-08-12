@@ -200,6 +200,8 @@ import { getSuppliers, createSupplier } from "../api/suppliers";
 import { linkSupplierProduct, unlinkSupplierProduct } from "../api/suppProd";
 import { uploadPicture, deletePicture } from "../api/pictures";
 import { getTicketConfig } from "../api/ticketConfig";
+import { updatePromo } from "../api/promos";
+import { getErrorMessage } from "../utils/errorMessage";
 import type { Category, Picture, Product, ProductUnit, Supplier, TicketConfig } from "../types";
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -271,6 +273,14 @@ export default function ProductModal() {
   const [labelMenuOpen, setLabelMenuOpen] = useState(false);
   const labelBarcodeRef = useRef<SVGSVGElement>(null);
 
+  // Descuento del producto: porcentaje editable (1-100) + botón para
+  // eliminarlo por completo. Solo se desvincula del producto (discountID a
+  // null) — no se borra el registro de Promo, porque también puede estar
+  // vinculado a una categoría (ver PromotionSetupPage).
+  const [discountPercentInput, setDiscountPercentInput] = useState<number | string>('');
+  const [savingDiscount, setSavingDiscount] = useState(false);
+  const [deletingDiscount, setDeletingDiscount] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -287,6 +297,7 @@ export default function ProductModal() {
       setCategoryInput(selectedProduct.category?.categoryName || '');
       setUnitInput(selectedProduct.unit?.produnitName || '');
       setSupplierInputs(selectedProduct.suppliers?.length ? selectedProduct.suppliers.map((s) => s.supplierName) : ['']);
+      setDiscountPercentInput(selectedProduct.promo ? Math.round(Number(selectedProduct.promo.discountPercentage) * 100) : '');
       setCurrentImgIndex(0);
       setIsEditing(false);
       setLabelMenuOpen(false);
@@ -462,6 +473,56 @@ export default function ProductModal() {
       alert(error?.response?.data?.message || "No se pudo generar la etiqueta.");
     } finally {
       setPrintingLabel(false);
+    }
+  };
+
+  // Valida en cada tecla: solo enteros de 1 a 100 (igual que
+  // PromotionSetupPage) — si el valor no cumple, simplemente se ignora la
+  // tecla y el input se queda como estaba.
+  const handleDiscountPercentChange = (val: string) => {
+    if (val === '') {
+      setDiscountPercentInput('');
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num >= 1 && num <= 100) {
+      setDiscountPercentInput(num);
+    }
+  };
+
+  const handleSaveDiscount = async () => {
+    if (discountPercentInput === '' || !formData.discountID) {
+      alert("Ingresa un porcentaje válido entre 1 y 100.");
+      return;
+    }
+    setSavingDiscount(true);
+    try {
+      const promo = await updatePromo(formData.discountID, { discountPercentage: Number(discountPercentInput) / 100 });
+      const merged = { ...formData, promo };
+      setFormData(merged);
+      setProducts(products.map((p) => (p.prodCode === merged.prodCode ? merged : p)));
+    } catch (error) {
+      alert(getErrorMessage(error, "No se pudo actualizar el descuento."));
+    } finally {
+      setSavingDiscount(false);
+    }
+  };
+
+  // Solo desvincula el descuento de ESTE producto (discountID a null) — no
+  // borra el registro de Promo, que puede seguir vinculado a una categoría.
+  const handleDeleteDiscount = async () => {
+    if (!window.confirm("¿Seguro que deseas eliminar el descuento de este producto?")) return;
+    setDeletingDiscount(true);
+    try {
+      const updated = await updateProduct(formData.prodCode, { discountID: null });
+      const merged = { ...formData, ...updated };
+      setFormData(merged);
+      setProducts(products.map((p) => (p.prodCode === merged.prodCode ? merged : p)));
+      setDiscountPercentInput('');
+    } catch (error) {
+      alert(getErrorMessage(error, "No se pudo eliminar el descuento."));
+    } finally {
+      setDeletingDiscount(false);
     }
   };
 
@@ -740,13 +801,50 @@ export default function ProductModal() {
             {/* 3. SECCIÃ“N DERECHA: DESCUENTO Y DESCRIPCIÃ“N (3 columnas) */}
             <div className="lg:col-span-3 flex flex-col gap-8">
               {tieneDescuento ? (
-                <div className="text-center p-6 bg-emerald-50 rounded-3xl border-2 border-emerald-100 shadow-inner">
-                  <p className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-2">
+                // Tamaño dinámico: en solo-lectura, el bloque se ajusta nada
+                // más al número y el "%" (sin los botones, que solo existen
+                // en DOM cuando isEditing); al activar "Editar" en la ventana
+                // general, crece para dar lugar al input y los botones.
+                <div className={`text-center bg-emerald-50 rounded-3xl border-2 border-emerald-100 shadow-inner flex flex-col items-center transition-all ${isEditing ? 'p-6 gap-4' : 'p-4 gap-1'}`}>
+                  <p className="text-xs font-black text-emerald-600 uppercase tracking-widest">
                     Promoción Vigente
                   </p>
-                  <p className="text-4xl font-black text-emerald-900">
-                    -{(Number(formData.promo?.discountPercentage) * 100).toFixed(0)}%
-                  </p>
+                  {isEditing ? (
+                    <>
+                      <div className="flex items-center gap-1 text-emerald-900">
+                        <span className="text-4xl font-black">-</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="1-100"
+                          value={discountPercentInput}
+                          onChange={(e) => handleDiscountPercentChange(e.target.value)}
+                          className="w-20 text-4xl font-black text-center bg-transparent border-b-4 border-emerald-300 focus:border-emerald-600 outline-none"
+                        />
+                        <span className="text-4xl font-black">%</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleSaveDiscount}
+                          disabled={savingDiscount || discountPercentInput === ''}
+                          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Check className="w-3.5 h-3.5" /> <span className="hidden md:inline">{savingDiscount ? "Guardando..." : "Guardar"}</span>
+                        </button>
+                        <button
+                          onClick={handleDeleteDiscount}
+                          disabled={deletingDiscount}
+                          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-700 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> <span className="hidden md:inline">{deletingDiscount ? "Eliminando..." : "Eliminar"}</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-4xl font-black text-emerald-900">
+                      -{(Number(formData.promo?.discountPercentage) * 100).toFixed(0)}%
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="h-40 border-2 border-dashed border-gray-100 rounded-3xl flex items-center justify-center text-gray-300 italic text-sm">
@@ -775,7 +873,9 @@ export default function ProductModal() {
             </div>
           </div>
 
-          {/* BOTONES FINALES DE ACCIÃ“N */}
+          {/* BOTONES FINALES DE ACCIÓN — en celular (exclusivo), solo ícono,
+              sin texto, en todas las versiones "Eliminar" queda al final a la
+              derecha para que "Editar" quede en medio de la fila. */}
           <div className="flex justify-center gap-6 mt-16 pt-10 border-t-2 border-gray-50">
             {isEditing ? (
               <>
@@ -783,7 +883,7 @@ export default function ProductModal() {
                   onClick={handleSave}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all active:scale-95 cursor-pointer flex items-center gap-2 md:gap-3 uppercase text-sm md:text-base"
                 >
-                  <Check className="w-4 h-4 md:w-5 md:h-5" /> Guardar Cambios
+                  <Check className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Guardar Cambios</span>
                 </button>
                 <button
                   onClick={() => {
@@ -796,29 +896,29 @@ export default function ProductModal() {
                   }}
                   className="bg-gray-400 hover:bg-gray-500 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all cursor-pointer flex items-center gap-2 md:gap-3 uppercase text-sm md:text-base"
                 >
-                  <RotateCcw className="w-4 h-4 md:w-5 md:h-5" /> Cancelar
+                  <RotateCcw className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Cancelar</span>
                 </button>
               </>
             ) : (
               <>
                 <button
+                  onClick={handlePrintLabel}
+                  disabled={printingLabel}
+                  className="bg-gray-700 hover:bg-gray-900 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <Barcode className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Imprimir etiqueta</span>
+                </button>
+                <button
                   onClick={() => setIsEditing(true)}
                   className="bg-[#3ab0e2] hover:bg-emerald-600 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base"
                 >
-                  <Edit3 className="w-4 h-4 md:w-5 md:h-5" /> Editar
+                  <Edit3 className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Editar</span>
                 </button>
                 <button
                   onClick={handleDelete}
                   className="bg-red-500 hover:bg-red-700 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base"
                 >
-                  <Trash2 className="w-4 h-4 md:w-5 md:h-5" /> Eliminar
-                </button>
-                <button
-                  onClick={handlePrintLabel}
-                  disabled={printingLabel}
-                  className="bg-gray-700 hover:bg-gray-900 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                >
-                  <Barcode className="w-4 h-4 md:w-5 md:h-5" /> Imprimir etiqueta
+                  <Trash2 className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Eliminar</span>
                 </button>
               </>
             )}
