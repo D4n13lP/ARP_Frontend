@@ -47,6 +47,8 @@ export const ROUTES = {
     DISCOUNT_ADJUSTMENT: "/discounts/adjustments",
   },
 
+  TICKET_CONFIG: "/settings/ticket-config",
+
   ACCOUNT: "/account",
   ACCOUNT_SWITCH: "/account/switch",
   ACCOUNT_PENDING: "/account/pending",

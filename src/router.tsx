@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './layouts/Layout'
 import RequireAuth from './layouts/RequireAuth'
 import ModuleGuard from './components/ModuleGuard'
+import AdminOnlyGuard from './components/AdminOnlyGuard'
 import { ROUTES } from "./routes";
 
 const OtherAccountSettings_Page = lazy(() => import('./views/OtherAccountSettings_Page'))
@@ -44,6 +45,7 @@ const Retiros_Page = lazy(() => import('./views/Retiros_Page'))
 const Inventory_Page = lazy(() => import('./views/Inventory_Page'))
 const ProductCatalog_Page = lazy(() => import('./views/ProductCatalog_Page'))
 const Warehouses_Page = lazy(() => import('./views/Warehouses_Page'))
+const EditTicketConfig_Page = lazy(() => import('./views/EditTicketConfig_Page'))
 
 export default function AppRouter() {
   return (
@@ -99,6 +101,7 @@ export default function AppRouter() {
               <Route path={ROUTES.ORDERS.DETAIL} element={<ModuleGuard moduleKey="order-detail"><OrderDetail_Page /></ModuleGuard>} />
               <Route path="products/watch" element={<ModuleGuard moduleKey="watch-products"><WatchProducts_Page /></ModuleGuard>} />
               <Route path='destinationAccount/register' element={<ModuleGuard moduleKey="destination-account"><RegisterDestinationAccount_Page/></ModuleGuard>} />
+              <Route path={ROUTES.TICKET_CONFIG} element={<AdminOnlyGuard><EditTicketConfig_Page /></AdminOnlyGuard>} />
             </Route>
           </Route>
 

@@ -31,18 +31,21 @@ export default function DiscountsMenu_Page() {
             alt="Logo Empresa"
             className="absolute left-4 sm:left-6 lg:left-8 h-16 md:h-20 object-contain max-lg:portrait:hidden"
           />
-          <div className="flex items-center gap-4 text-[#e65100]">
-            <h1 className="text-4xl md:text-5xl font-normal tracking-tight text-center">
+          <div className="flex items-center gap-3 md:gap-4 text-[#e65100]">
+            <h1 className="text-3xl md:text-5xl font-normal tracking-tight text-center">
               Descuentos
             </h1>
-            <TicketPercent size={48} strokeWidth={1.2} />
+            <TicketPercent className="w-9 h-9 md:w-12 md:h-12" strokeWidth={1.2} />
           </div>
         </div>
       </header>
 
       <main className="flex-grow flex flex-col items-center">
-        <div className="w-full max-w-md flex flex-col items-center">
-          <h2 className="text-xl text-gray-800 mb-12 font-medium">Selecciona el tipo de descuento</h2>
+        {/* px-6 md:px-0: en celular separa el contenido de los bordes de la
+            pantalla (antes lo tocaba); en tablet/escritorio no cambia nada,
+            ya "max-w-md mx-auto" les daba de sobra espacio a los lados. */}
+        <div className="w-full max-w-md flex flex-col items-center px-6 md:px-0">
+          <h2 className="text-lg md:text-xl text-gray-800 mb-12 font-medium text-center">Selecciona el tipo de descuento</h2>
 
           <RadioGroup value={selectedType} onChange={setSelectedType} className="w-full space-y-8">
             <RadioGroup.Option value="promocion" className="cursor-pointer outline-none group">
@@ -68,16 +71,18 @@ export default function DiscountsMenu_Page() {
             {/* TERCERA OPCIÓN: AJUSTAR */}
             <RadioGroup.Option value="ajustes" className="cursor-pointer outline-none group">
               {({ checked }: { checked: boolean }) => (
-                <div className="flex items-center justify-between w-full">
-                  <DiscountOption 
-                    label="Ajustar los tipos de descuento" 
-                    checked={checked} 
-                    activeColor="text-[#8e44ad]" 
+                <div className="flex items-center justify-between gap-2 w-full">
+                  <DiscountOption
+                    label="Ajustar los tipos de descuento"
+                    checked={checked}
+                    activeColor="text-[#8e44ad]"
                   />
-                  {/* Icono extra para enfatizar que es configuración */}
-                  <Settings2 
-                    size={20} 
-                    className={`transition-colors ${checked ? 'text-[#8e44ad]' : 'text-gray-300'}`} 
+                  {/* Icono extra para enfatizar que es configuración —
+                      shrink-0 para que nunca se aplaste, ni siquiera en
+                      celular cuando la etiqueta de al lado hace wrap. */}
+                  <Settings2
+                    size={20}
+                    className={`shrink-0 transition-colors ${checked ? 'text-[#8e44ad]' : 'text-gray-300'}`}
                   />
                 </div>
               )}

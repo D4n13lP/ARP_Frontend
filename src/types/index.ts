@@ -140,6 +140,9 @@ export const PaymentHistorySchema = z.object({
   // Quién tenía la sesión abierta al registrarlo — null en pagos históricos
   // de antes de esta columna.
   collectedBy: TransactionUserSchema.nullable().optional(),
+  // Solo viene poblado cuando se pide con includePayments=true y el pago fue
+  // digital (SalesReport_Page, para mostrar el alias de la cuenta destino).
+  destAccount: DestAccountSchema.nullable().optional(),
 });
 export type PaymentHistory = z.infer<typeof PaymentHistorySchema>;
 
@@ -155,6 +158,56 @@ export const TotalCashSchema = z.object({
   adminUserID: z.string().nullable().optional(),
 });
 export type TotalCash = z.infer<typeof TotalCashSchema>;
+
+// Textos editables del ticket impreso (Editar Ticket y etiquetas, solo
+// admin — ver views/EditTicketConfig_Page.tsx). Mismo shape que
+// DEFAULT_TICKET_CONFIG en ticketConfig.controller.ts; todos strings porque
+// son literalmente lo que se imprime.
+export const TicketConfigSchema = z.object({
+  empresaNombre: z.string(),
+  empresaDireccion: z.string(),
+  empresaTelefonos: z.string(),
+  empresaCorreo: z.string(),
+
+  lblTicketCompra: z.string(),
+  lblFecha: z.string(),
+  lblHora: z.string(),
+  lblVendedor: z.string(),
+  lblCliente: z.string(),
+  lblDomicilio: z.string(),
+  lblFechaEntrega: z.string(),
+  lblCantidad: z.string(),
+  lblDescripcion: z.string(),
+  lblPrecio: z.string(),
+  lblImporte: z.string(),
+  lblSubtotal: z.string(),
+  lblDescuento: z.string(),
+  lblCostoEnvio: z.string(),
+  lblTotal: z.string(),
+  lblAnticipo: z.string(),
+  lblRestante: z.string(),
+  lblTipoPago: z.string(),
+  lblEntregado: z.string(),
+  lblCambio: z.string(),
+  lblFirma: z.string(),
+  lblGracias: z.string(),
+
+  legalTitulo: z.string(),
+  legalLinea1: z.string(),
+  legalLinea2: z.string(),
+  legalLinea3: z.string(),
+  legalLinea4: z.string(),
+
+  // Etiquetas de producto (botón "Imprimir etiqueta" en ProductModal),
+  // editables desde "Editar etiquetas" (misma pantalla que "Editar tickets").
+  etiquetaTipoCodigo: z.string(),
+  etiquetaMostrarSku: z.boolean(),
+  etiquetaFechaHora: z.boolean(),
+  etiquetaRotar: z.boolean(),
+  etiquetaVertical: z.boolean(),
+  etiquetaEspejo: z.boolean(),
+});
+export type TicketConfig = z.infer<typeof TicketConfigSchema>;
 
 export const TransDetailSchema = z.object({
   transDetailID: z.string(),

@@ -4,12 +4,15 @@ import { useState } from 'react';
 import { Search } from 'lucide-react';
 import ProductSearchTable, { type ProductData } from '../components/ProductSearchTable';
 import SaleSummary, { type CartItem, type SaleSummaryData } from '../components/SaleSummary';
+import TicketPrintModal, { type TicketData } from '../components/TicketPrintModal';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getInventories } from '../api/inventory';
 import { createSale } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
+import { useAppStore } from '../stores/useAppStore';
 
 export default function RegisterSale_Page() {
+  const authUser = useAppStore((state) => state.authUser);
   const [codigo, setCodigo] = useState('');
   const [nombreProducto, setNombreProducto] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
@@ -22,6 +25,7 @@ export default function RegisterSale_Page() {
   const [viewStep, setViewStep] = useState<'search' | 'summary'>('search');
   const [cartData, setCartData] = useState<CartItem[]>([]);
   const [registeringSale, setRegisteringSale] = useState(false);
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
 
   // La tabla de resultados sale de "inventory" (no de "product"): si el mismo
   // producto tiene existencia en varios almacenes, aparece una fila por cada
@@ -121,7 +125,34 @@ export default function RegisterSale_Page() {
         shippingCost: summaryData.shippingCost,
       });
 
-      alert(`Venta registrada correctamente. Folio: ${result.folio ?? result.transactionID}`);
+      // Subtotal sin descuento (suma de "suma" de cada renglón) vs. el total
+      // ya con descuento aplicado (summaryData.totales.base) — la diferencia
+      // es el importe descontado, para desglosarlo en el ticket.
+      const subtotalBruto = summaryData.cartItems.reduce((sum, item) => sum + item.suma, 0);
+      const totalDescuento = subtotalBruto - summaryData.totales.base;
+      const tipoPagoLabel = summaryData.pago.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia / tarjeta';
+
+      setTicketData({
+        tipo: 'venta',
+        folio: result.folio ?? result.transactionID,
+        fecha: new Date(),
+        vendedor: authUser?.userName || '-',
+        cliente: summaryData.cliente?.clientName || 'Cliente no registrado',
+        items: summaryData.cartItems.map((item) => ({
+          nombre: item.nombre,
+          cantidad: item.cantidad,
+          unidad: item.unidad,
+          precio: item.precio,
+          importe: item.sumaFinal,
+        })),
+        subtotal: subtotalBruto,
+        descuento: totalDescuento,
+        costoEnvio: summaryData.shippingCost,
+        total: summaryData.totales.final,
+        tipoPago: tipoPagoLabel,
+        totalPago: summaryData.totales.final,
+        metodoPagoEsEfectivo: summaryData.pago.paymentMethod === 'cash',
+      });
 
       // Listo: se limpia todo para poder registrar la siguiente venta desde cero.
       setCodigo('');
@@ -244,6 +275,8 @@ export default function RegisterSale_Page() {
           </div>
         )}
      </div>
+
+     <TicketPrintModal key={ticketData?.folio ?? 'closed'} data={ticketData} onClose={() => setTicketData(null)} />
     </div>
   );
 }

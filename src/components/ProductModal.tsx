@@ -178,6 +178,7 @@
 //   )
 // }
 import { useState, useEffect, useRef } from "react";
+import JsBarcode from "jsbarcode";
 import {
   X,
   ChevronLeft,
@@ -188,6 +189,8 @@ import {
   Trash2,
   Check,
   RotateCcw,
+  Barcode,
+  Printer,
 } from "lucide-react";
 import { useAppStore } from "../stores/useAppStore";
 import { updateProduct, deleteProduct } from "../api/products";
@@ -196,7 +199,8 @@ import { getProductUnits, createProductUnit } from "../api/productUnits";
 import { getSuppliers, createSupplier } from "../api/suppliers";
 import { linkSupplierProduct, unlinkSupplierProduct } from "../api/suppProd";
 import { uploadPicture, deletePicture } from "../api/pictures";
-import type { Category, Picture, Product, ProductUnit, Supplier } from "../types";
+import { getTicketConfig } from "../api/ticketConfig";
+import type { Category, Picture, Product, ProductUnit, Supplier, TicketConfig } from "../types";
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#e5e7eb"/><text x="50%" y="50%" font-family="sans-serif" font-size="28" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">Sin imagen</text></svg>'
@@ -251,6 +255,22 @@ export default function ProductModal() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierInputs, setSupplierInputs] = useState<string[]>(['']);
 
+  // Etiqueta del producto ("Imprimir etiqueta"): el código de barras real se
+  // dibuja con JsBarcode dentro del <svg> de más abajo, usando el tipo de
+  // símbolo y las características de impresión que el admin haya guardado en
+  // "Editar etiquetas" (EditTicketConfig_Page) — se piden frescas cada vez
+  // que se imprime, por si cambiaron desde la última vez.
+  const [labelConfig, setLabelConfig] = useState<TicketConfig | null>(null);
+  const [printingLabel, setPrintingLabel] = useState(false);
+  // La terminal tiene 2 impresoras conectadas (tickets y códigos de barras):
+  // en vez de imprimir directo, se muestra este menú antes — un navegador no
+  // puede elegir la impresora en silencio (misma restricción que en
+  // TicketPrintModal), así que "seleccionar impresora" e "imprimir etiqueta"
+  // abren el mismo diálogo nativo del sistema, donde ahí sí aparecen las 2
+  // impresoras detectadas para elegir la correcta.
+  const [labelMenuOpen, setLabelMenuOpen] = useState(false);
+  const labelBarcodeRef = useRef<SVGSVGElement>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -269,6 +289,7 @@ export default function ProductModal() {
       setSupplierInputs(selectedProduct.suppliers?.length ? selectedProduct.suppliers.map((s) => s.supplierName) : ['']);
       setCurrentImgIndex(0);
       setIsEditing(false);
+      setLabelMenuOpen(false);
     }
   }, [selectedProduct]);
 
@@ -407,6 +428,40 @@ export default function ProductModal() {
       closeModal();
     } catch (error: any) {
       alert(error?.response?.data?.message || "No se pudo eliminar el producto.");
+    }
+  };
+
+  // Genera el código de barras y abre el menú (no imprime todavía) — el menú
+  // deja elegir entre "Seleccionar impresora" e "Imprimir etiqueta", ambos
+  // abren el diálogo nativo del sistema, donde están las 2 impresoras reales
+  // (tickets y códigos de barras) para escoger la correcta.
+  const handlePrintLabel = async () => {
+    const sku = formData.sku || formData.prodCode;
+    if (!sku) {
+      alert("Este producto no tiene SKU registrado.");
+      return;
+    }
+    setPrintingLabel(true);
+    try {
+      const config = await getTicketConfig();
+      setLabelConfig(config);
+      // Se espera al siguiente frame para que el <svg> del área imprimible ya
+      // esté montado con la config nueva antes de dibujar el código de barras.
+      requestAnimationFrame(() => {
+        if (labelBarcodeRef.current) {
+          JsBarcode(labelBarcodeRef.current, sku, {
+            format: config.etiquetaTipoCodigo,
+            displayValue: config.etiquetaMostrarSku,
+            fontSize: 16,
+            margin: 8,
+          });
+        }
+        setLabelMenuOpen(true);
+      });
+    } catch (error: any) {
+      alert(error?.response?.data?.message || "No se pudo generar la etiqueta.");
+    } finally {
+      setPrintingLabel(false);
     }
   };
 
@@ -758,6 +813,13 @@ export default function ProductModal() {
                 >
                   <Trash2 className="w-4 h-4 md:w-5 md:h-5" /> Eliminar
                 </button>
+                <button
+                  onClick={handlePrintLabel}
+                  disabled={printingLabel}
+                  className="bg-gray-700 hover:bg-gray-900 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <Barcode className="w-4 h-4 md:w-5 md:h-5" /> Imprimir etiqueta
+                </button>
               </>
             )}
           </div>
@@ -809,6 +871,83 @@ export default function ProductModal() {
           </div>
         </div>
       )}
+
+      {/* Menú "Imprimir etiqueta": la terminal tiene 2 impresoras conectadas
+          (tickets y códigos de barras), así que en vez de imprimir directo se
+          confirma primero cuál usar — un navegador no puede elegir la
+          impresora en silencio, así que ambos botones abren el mismo diálogo
+          nativo del sistema, donde sí aparecen las 2 impresoras detectadas. */}
+      {labelMenuOpen && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4 print:hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 animate-fade-in">
+            <div className="text-center">
+              <h2 className="text-lg font-bold text-gray-900">Etiqueta lista para imprimir</h2>
+              <p className="text-sm text-gray-500">SKU: {formData.sku || formData.prodCode}</p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-3 border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-lg py-2.5 px-4 text-sm font-medium transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4 shrink-0" />
+                Seleccionar impresora
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-3 bg-gray-800 hover:bg-gray-950 text-white rounded-lg py-2.5 px-4 text-sm font-medium shadow-sm transition-colors cursor-pointer"
+              >
+                <Barcode className="w-4 h-4 shrink-0" />
+                Imprimir etiqueta
+              </button>
+            </div>
+
+            <button
+              onClick={() => setLabelMenuOpen(false)}
+              className="text-sm text-gray-500 hover:text-gray-700 self-center mt-1 cursor-pointer transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Área imprimible de la etiqueta — oculta en pantalla, solo se muestra
+          (y solo ella) dentro del diálogo de impresión, igual que
+          TicketPrintModal. La rotación/espejo vienen de "Editar etiquetas". */}
+      <div
+        id="label-print-area"
+        className="hidden print:flex flex-col items-center gap-2 bg-white text-black"
+        style={{
+          transform: `rotate(${(labelConfig?.etiquetaVertical ? 90 : 0) + (labelConfig?.etiquetaRotar ? 180 : 0)}deg) scaleX(${labelConfig?.etiquetaEspejo ? -1 : 1})`,
+        }}
+      >
+        <div className="font-bold text-sm text-center" style={{ fontFamily: 'sans-serif' }}>
+          {formData.productName}
+        </div>
+        <svg ref={labelBarcodeRef} />
+        {labelConfig?.etiquetaFechaHora && (
+          <div className="text-xs" style={{ fontFamily: 'sans-serif' }}>
+            {new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #label-print-area, #label-print-area * { visibility: visible; }
+          #label-print-area {
+            position: absolute;
+            top: 0;
+            left: 0;
+          }
+          @page {
+            size: auto;
+            margin: 8mm;
+          }
+        }
+      `}</style>
     </div>
   );
 }

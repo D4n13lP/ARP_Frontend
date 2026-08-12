@@ -363,7 +363,9 @@ export default function Navbar({
       <nav className="fixed top-0 left-0 w-full h-14 z-50 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
         <div className="h-full px-4 flex items-center justify-between">
           
-          <div className="flex-1 flex items-center">
+          {/* lg:px-4: solo en laptop/escritorio separa el botón un poco de la
+              orilla izquierda hacia el centro; tablet y celular quedan igual. */}
+          <div className="flex-1 flex items-center lg:px-4">
             <button type="button" onClick={toggleDrawer} className={iconBtn}>
               <img src={menuIcon} alt="Menú" className="h-6 w-6" />
             </button>
@@ -397,7 +399,9 @@ export default function Navbar({
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-end relative" ref={profileRef}>
+          {/* lg:px-4: solo en laptop/escritorio separa el avatar un poco de la
+              orilla derecha hacia el centro; tablet y celular quedan igual. */}
+          <div className="flex-1 flex items-center justify-end relative lg:px-4" ref={profileRef}>
             <button
               type="button"
               onClick={toggleProfile}
@@ -489,6 +493,11 @@ export default function Navbar({
           <SideItem label="Ventas y pedidos" onClick={() => go(ROUTES.SALES.ROOT)} />
           <SideItem label="Pedidos" onClick={() => go(ROUTES.ORDERS.ROOT)} />
           <SideItem label="Reporte de ventas" onClick={() => go(ROUTES.SALES.REPORT)} />
+          {/* Exclusivo admin: sin forma de otorgarlo a un vendedor, a
+              diferencia del resto (esas sí son permisos por módulo). */}
+          {authUser?.userType === 'admin' && (
+            <SideItem label="Editar Ticket y etiquetas" onClick={() => go(ROUTES.TICKET_CONFIG)} />
+          )}
         </div>
       </aside>
     </>

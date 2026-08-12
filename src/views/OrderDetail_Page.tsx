@@ -40,6 +40,14 @@ export default function OrderDetail_Page() {
       .finally(() => setLoading(false));
   }, [transactionID]);
 
+  // Forma de pago de cada abono: efectivo, o transferencia/tarjeta con el
+  // alias de la cuenta destino si aplica (igual que en SalesReport_Page).
+  const getFormaPago = (payment: NonNullable<Transaction['payments']>[number]) => {
+    if (payment.paymentMethod === 'cash') return 'Efectivo';
+    const alias = payment.destAccount?.accountAlias;
+    return alias ? `Transferencia / tarjeta — ${alias}` : 'Transferencia / tarjeta';
+  };
+
   const handleAddPayment = async () => {
     if (!order) return;
     const amount = parseFloat(paymentAmount);
@@ -232,21 +240,23 @@ export default function OrderDetail_Page() {
             <table className="w-full border-collapse text-sm text-left text-gray-700 border border-gray-300">
               <thead className="bg-gray-100 text-gray-800 font-semibold border-b border-gray-300 text-xs">
                 <tr>
-                  <th className="w-1/3 px-2 py-3 border-r border-gray-300">Cobró</th>
-                  <th className="w-1/3 px-2 py-3 border-r border-gray-300">Importe</th>
-                  <th className="w-1/3 px-2 py-3">Fecha</th>
+                  <th className="w-1/4 px-2 py-3 border-r border-gray-300">Cobró</th>
+                  <th className="w-1/4 px-2 py-3 border-r border-gray-300">Forma de pago</th>
+                  <th className="w-1/4 px-2 py-3 border-r border-gray-300">Importe</th>
+                  <th className="w-1/4 px-2 py-3">Fecha</th>
                 </tr>
               </thead>
               <tbody>
                 {order.payments && order.payments.length > 0 ? order.payments.map((payment) => (
                   <tr key={payment.pymntHistryID} className="border-b border-gray-200 hover:bg-gray-50 h-10">
                     <td className="px-2 py-2 border-r border-gray-200">{payment.collectedBy?.userName || '-'}</td>
+                    <td className="px-2 py-2 border-r border-gray-200">{getFormaPago(payment)}</td>
                     <td className="px-2 py-2 border-r border-gray-200">{formatMoney(payment.paymentAmount)}</td>
                     <td className="px-2 py-2">{payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City' }) : '-'}</td>
                   </tr>
                 )) : (
                   <tr className="h-10">
-                    <td colSpan={3} className="px-4 py-2 text-gray-400 italic text-center">Sin pagos registrados todavía.</td>
+                    <td colSpan={4} className="px-4 py-2 text-gray-400 italic text-center">Sin pagos registrados todavía.</td>
                   </tr>
                 )}
               </tbody>
@@ -259,6 +269,7 @@ export default function OrderDetail_Page() {
               <div key={payment.pymntHistryID} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center gap-3 text-sm">
                 <div className="min-w-0">
                   <div className="font-bold text-gray-900 truncate">{payment.collectedBy?.userName || '-'}</div>
+                  <div className="text-xs text-gray-500 truncate">{getFormaPago(payment)}</div>
                   <div className="text-xs text-gray-500">{payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City' }) : '-'}</div>
                 </div>
                 <div className="shrink-0 font-semibold text-gray-800">{formatMoney(payment.paymentAmount)}</div>
@@ -356,7 +367,7 @@ export default function OrderDetail_Page() {
              <button
                 onClick={handleSave}
                 disabled={saving}
-                className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-8 py-2 rounded transition-colors text-sm cursor-pointer font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-5 py-1.5 md:px-8 md:py-2 rounded transition-colors text-sm cursor-pointer font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>

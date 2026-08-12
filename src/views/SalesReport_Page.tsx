@@ -69,7 +69,7 @@ export default function SalesReport_Page() {
 
     setGenerating(true);
     try {
-      const all = await getTransactions({ transType: 'sale' });
+      const all = await getTransactions({ transType: 'sale', includePayments: true });
       // transactionDate es "YYYY-MM-DD": comparar como texto es seguro y
       // evita cualquier lío de zona horaria al construir un Date.
       const enRango = all.filter((sale) => {
@@ -110,6 +110,16 @@ export default function SalesReport_Page() {
 
   const handleViewSellers = () => {
     setViewState('sellers');
+  };
+
+  // Forma de pago de la venta (se pide con includePayments=true): efectivo,
+  // o transferencia/tarjeta con el alias de la cuenta destino si aplica.
+  const getFormaPago = (sale: Transaction) => {
+    const pago = sale.payments?.[0];
+    if (!pago) return '-';
+    if (pago.paymentMethod === 'cash') return 'Efectivo';
+    const alias = pago.destAccount?.accountAlias;
+    return alias ? `Transferencia / tarjeta — ${alias}` : 'Transferencia / tarjeta';
   };
 
   // Calcular importe total de ventas del periodo actual
@@ -169,7 +179,8 @@ export default function SalesReport_Page() {
             <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Vendedor:</span> <span>{getVendedorName(selectedSale)}</span></div>
             <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Repartidor:</span> <span>{getRepartidorName(selectedSale)}</span></div>
             <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Lugar de entrega:</span> <span>{getLugarEntrega(selectedSale)}</span></div>
-            <div className="flex justify-between md:justify-start md:gap-4 mt-4"><span className="font-medium w-36">Estado del pago:</span> <span>{selectedSale.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Forma de pago:</span> <span>{getFormaPago(selectedSale)}</span></div>
+            <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Estado del pago:</span> <span>{selectedSale.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}</span></div>
           </div>
 
           {/* Columna Derecha: Tabla de productos */}
@@ -362,6 +373,7 @@ export default function SalesReport_Page() {
                   <th className="px-3 py-4 border-r border-gray-300 align-middle">Estado</th>
                   <th className="px-3 py-4 border-r border-gray-300 align-middle">Cliente</th>
                   <th className="px-3 py-4 border-r border-gray-300 align-middle">Vendedor</th>
+                  <th className="px-3 py-4 border-r border-gray-300 align-middle">Forma de pago</th>
                   <th className="px-3 py-4 border-r border-gray-300 align-middle w-24">Importe total final</th>
                   <th className="px-3 py-4 align-middle"></th>
                 </tr>
@@ -369,7 +381,7 @@ export default function SalesReport_Page() {
               <tbody>
                 {sales.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-gray-400 italic">
+                    <td colSpan={9} className="py-8 text-gray-400 italic">
                       No hay ventas en ese periodo.
                     </td>
                   </tr>
@@ -381,6 +393,7 @@ export default function SalesReport_Page() {
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{sale.outstandingAmount > 0 ? 'Pendiente' : 'Pagado'}</td>
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{getClienteNombre(sale)}</td>
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{getVendedorName(sale)}</td>
+                    <td className="px-3 py-2 border-r border-gray-200 align-middle">{getFormaPago(sale)}</td>
                     <td className="px-3 py-2 border-r border-gray-200 align-middle">{formatMoney(sale.finalAmount)}</td>
                     <td className="px-3 py-2 align-middle">
                       <button
@@ -418,6 +431,7 @@ export default function SalesReport_Page() {
                   <div><span className="text-gray-500 block mb-0.5">Fecha pedido</span><span className="font-semibold text-gray-800">{formatDateOnly(sale.transactionDate)}</span></div>
                   <div><span className="text-gray-500 block mb-0.5">Fecha entrega</span><span className="font-semibold text-gray-800">{formatDeliveryDate(sale)}</span></div>
                   <div><span className="text-gray-500 block mb-0.5">Vendedor</span><span className="font-semibold text-gray-800">{getVendedorName(sale)}</span></div>
+                  <div><span className="text-gray-500 block mb-0.5">Forma de pago</span><span className="font-semibold text-gray-800">{getFormaPago(sale)}</span></div>
                   <div><span className="text-gray-500 block mb-0.5">Importe total</span><span className="font-semibold text-gray-800">{formatMoney(sale.finalAmount)}</span></div>
                 </div>
                 <button

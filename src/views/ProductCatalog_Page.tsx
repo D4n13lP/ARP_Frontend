@@ -119,8 +119,8 @@
 //   )
 // }
 
-import { useEffect } from 'react'
-import { ArrowLeft, Search, ChevronRight, Package, ArrowUpDown, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, Search, ChevronRight, ChevronDown, Package, ArrowUpDown, X } from 'lucide-react'
 import logoEmpresa from '../assets/logo_empresa.jpg'
 import ProductCard from '../components/ProductCard'
 import ProductModal from '../components/ProductModal' // Importa el modal
@@ -139,6 +139,11 @@ export default function ProductCatalog_Page() {
   const setProducts = useAppStore((state) => state.setProducts)
   const setCategories = useAppStore((state) => state.setCategories)
   const navigate = useNavigate(); // Hook para navegar
+
+  // Colapsar/expandir la lista de categorías al tocar el encabezado — solo
+  // aplica en celular (< md); en tablet/escritorio la lista siempre se ve
+  // expandida sin importar este estado (ver el className de la lista abajo).
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
 
   useEffect(() => {
     getProducts().then(setProducts)
@@ -214,10 +219,21 @@ export default function ProductCatalog_Page() {
         
         {/* MENÚ LATERAL */}
         <aside className="w-full lg:w-60 flex-shrink-0">
-          <div className="bg-gray-100 p-3 rounded-t-xl border-x border-t border-gray-200">
+          {/* Encabezado: en celular es tocable y colapsa/expande la lista de
+              abajo; en tablet/escritorio se ve y se comporta igual que antes
+              (no hace nada al tocarlo, la lista siempre está expandida). */}
+          <button
+            type="button"
+            onClick={() => setCategoriasAbiertas((prev) => !prev)}
+            className="w-full bg-gray-100 p-3 rounded-t-xl border-x border-t border-gray-200 flex items-center justify-center gap-2 cursor-pointer md:cursor-default"
+          >
             <h2 className="text-md font-bold text-center text-gray-600 uppercase tracking-widest">Categorías</h2>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-b-xl shadow-sm overflow-hidden">
+            <ChevronDown
+              size={16}
+              className={`text-gray-500 transition-transform md:hidden ${categoriasAbiertas ? 'rotate-180' : ''}`}
+            />
+          </button>
+          <div className={`bg-white border border-gray-200 rounded-b-xl shadow-sm overflow-hidden md:block ${categoriasAbiertas ? 'block' : 'hidden'}`}>
             {usedCategories.map((cat) => (
               <button
                 key={cat.categoryID}

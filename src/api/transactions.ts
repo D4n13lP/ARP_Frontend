@@ -64,9 +64,11 @@ export async function createOrder(payload: CreateOrderPayload): Promise<SaleTran
 
 // GET /transactions con filtros opcionales — usado por UpdateOrder_Page
 // (transType=order, status=pending), OrdersReports_Page (transType=order,
-// todas; el rango de fechas se filtra en el cliente) y ClientHistory_Page
-// (clientCode; el backend agrega ahí el detalle de productos de cada compra).
-export async function getTransactions(filters?: { transType?: 'sale' | 'order'; status?: 'pending' | 'completed'; clientCode?: string }): Promise<Transaction[]> {
+// todas; el rango de fechas se filtra en el cliente), ClientHistory_Page
+// (clientCode; el backend agrega ahí el detalle de productos de cada compra)
+// y SalesReport_Page (includePayments; el backend agrega ahí el historial de
+// pagos con la cuenta destino, para mostrar la forma de pago de cada venta).
+export async function getTransactions(filters?: { transType?: 'sale' | 'order'; status?: 'pending' | 'completed'; clientCode?: string; includePayments?: boolean }): Promise<Transaction[]> {
   const { data } = await http.get('/transactions', { params: filters })
   return TransactionSchema.array().parse(data)
 }

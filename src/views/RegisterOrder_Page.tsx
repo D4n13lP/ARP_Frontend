@@ -3,12 +3,15 @@ import { Search } from 'lucide-react';
 import ProductSearchTable, { type ProductData } from '../components/ProductSearchTable';
 import SaleSummary, { type CartItem, type SaleSummaryData } from '../components/SaleSummary';
 import OrderReview, { type OrderPayment } from '../components/OrderReview';
+import TicketPrintModal, { type TicketData } from '../components/TicketPrintModal';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getInventories } from '../api/inventory';
 import { createOrder } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
+import { useAppStore } from '../stores/useAppStore';
 
 export default function RegisterOrder_Page() {
+  const authUser = useAppStore((state) => state.authUser);
   const [codigo, setCodigo] = useState('');
   const [nombreProducto, setNombreProducto] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
@@ -22,6 +25,7 @@ export default function RegisterOrder_Page() {
   const [cartData, setCartData] = useState<CartItem[]>([]);
   const [orderSummaryData, setOrderSummaryData] = useState<SaleSummaryData | null>(null);
   const [registeringOrder, setRegisteringOrder] = useState(false);
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
 
   // La tabla de resultados sale de "inventory" (no de "product"): si el mismo
   // producto tiene existencia en varios almacenes, aparece una fila por cada
@@ -125,7 +129,43 @@ export default function RegisterOrder_Page() {
         shippingCost: orderSummaryData.shippingCost,
       });
 
-      alert(`Pedido registrado correctamente. Folio: ${result.folio ?? result.transactionID}`);
+      // Igual que en RegisterSale_Page: subtotal sin descuento vs. el total ya
+      // descontado (orderSummaryData.totales.base) para desglosar el ticket.
+      const subtotalBruto = orderSummaryData.cartItems.reduce((sum, item) => sum + item.suma, 0);
+      const totalDescuento = subtotalBruto - orderSummaryData.totales.base;
+      const anticipoNum = payment.depositAmount;
+      const restanteNum = Math.max(0, orderSummaryData.totales.final - anticipoNum);
+      const tipoPagoLabel = anticipoNum > 0
+        ? (payment.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia / tarjeta')
+        : 'Sin anticipo';
+
+      setTicketData({
+        tipo: 'pedido',
+        folio: result.folio ?? result.transactionID,
+        fecha: new Date(),
+        vendedor: authUser?.userName || '-',
+        cliente: orderSummaryData.cliente?.clientName || 'Cliente no registrado',
+        domicilio: orderSummaryData.entrega.enTienda ? 'En tienda' : (orderSummaryData.entrega.address || '-'),
+        fechaEntrega: orderSummaryData.entrega.inmediata
+          ? 'Inmediata'
+          : (orderSummaryData.entrega.dispatchDateI ? `${orderSummaryData.entrega.dispatchDateI} a ${orderSummaryData.entrega.dispatchDateF || '-'}` : '-'),
+        items: orderSummaryData.cartItems.map((item) => ({
+          nombre: item.nombre,
+          cantidad: item.cantidad,
+          unidad: item.unidad,
+          precio: item.precio,
+          importe: item.sumaFinal,
+        })),
+        subtotal: subtotalBruto,
+        descuento: totalDescuento,
+        costoEnvio: orderSummaryData.shippingCost,
+        total: orderSummaryData.totales.final,
+        anticipo: anticipoNum,
+        restante: restanteNum,
+        tipoPago: tipoPagoLabel,
+        totalPago: anticipoNum,
+        metodoPagoEsEfectivo: anticipoNum > 0 && payment.paymentMethod === 'cash',
+      });
 
       // Listo: se limpia todo para poder registrar el siguiente pedido desde cero.
       setCodigo('');
@@ -263,6 +303,8 @@ export default function RegisterOrder_Page() {
         )}
 
      </div>
+
+     <TicketPrintModal key={ticketData?.folio ?? 'closed'} data={ticketData} onClose={() => setTicketData(null)} />
     </div>
   );
 }
