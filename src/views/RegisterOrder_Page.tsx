@@ -116,6 +116,7 @@ export default function RegisterOrder_Page() {
     try {
       const result = await createOrder({
         clientCode: orderSummaryData.cliente?.clientCode ?? null,
+        newClient: orderSummaryData.newClienteData ?? undefined,
         items: orderSummaryData.cartItems.map((item) => ({
           inventoryID: item.id,
           quantity: item.cantidad,
@@ -144,7 +145,7 @@ export default function RegisterOrder_Page() {
         folio: result.folio ?? result.transactionID,
         fecha: new Date(),
         vendedor: authUser?.userName || '-',
-        cliente: orderSummaryData.cliente?.clientName || 'Cliente no registrado',
+        cliente: orderSummaryData.cliente?.clientName || orderSummaryData.newClienteData?.clientName || 'Cliente no registrado',
         domicilio: orderSummaryData.entrega.enTienda ? 'En tienda' : (orderSummaryData.entrega.address || '-'),
         fechaEntrega: orderSummaryData.entrega.inmediata
           ? 'Inmediata'

@@ -24,6 +24,11 @@ export interface SaleSummaryData {
   // para mostrarlo en pantalla (p. ej. OrderReview) — al backend solo se le
   // manda el clientCode.
   cliente: { clientCode: string; clientName: string } | null;
+  // Datos capturados en "Cliente no registrado" cuando sí se decide crear el
+  // registro (o se rechaza pero de todos modos se guardan, con "(No
+  // registrado)" en el nombre) — ver el modal de confirmación más abajo.
+  // Va directo al "newClient" que ya soporta createSale/createOrder.
+  newClienteData: { clientName: string; clientPhone1?: string; RFC?: string } | null;
   itemsDiscountPercent: number | null; // si hay descuento tipo1/tipo2 aplicado, reemplaza el de cada producto
   transDiscountID: string | null;
   pago: { paymentMethod: string; destAccountClabe: string | null };
@@ -110,6 +115,9 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
   const [clientModal, setClientModal] = useState<{ results: Client[]; pickedCode: string | null } | null>(null);
   const [aplicarDescuento, setAplicarDescuento] = useState(false);
   const [tipoDescuento, setTipoDescuento] = useState(''); // transDiscountID
+  // Confirmación "¿Desea registrar al cliente?" — aparece al continuar si
+  // "Cliente no registrado" está marcado y sí se escribió un nombre.
+  const [showClienteConfirm, setShowClienteConfirm] = useState(false);
 
   // ---------- ESTADOS PASO 2 ----------
   const [formaPago, setFormaPago] = useState(''); // 'cash' | 'digital'
@@ -224,26 +232,18 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
     setStep(2);
   };
 
-  const handleRegisterSale = () => {
-    // El pago solo se decide aquí para variant="sale" — en un pedido
-    // (variant="order") el pago/anticipo se captura después, en OrderReview.
-    if (variant === 'sale') {
-      if (!formaPago) {
-        alert('Selecciona una forma de pago.');
-        return;
-      }
-      if (formaPago === 'digital' && !cuentaDestino) {
-        alert('Selecciona la cuenta destino del pago.');
-        return;
-      }
-    }
+  // Arma y manda los datos finales — separado de handleRegisterSale porque
+  // cuando hay que preguntar "¿Desea registrar al cliente?" esto se dispara
+  // después, ya con la decisión tomada (ver handleConfirmCliente).
+  const enviarRegistro = (newClienteData: SaleSummaryData['newClienteData']) => {
     onNext({
       cartItems: rows,
-      // "Cliente no registrado" -> sin cliente asociado, aunque se haya
-      // escrito nombre/teléfono/RFC (son solo para referencia en pantalla).
+      // "Cliente no registrado" -> sin cliente YA EXISTENTE asociado
+      // (newClienteData es lo que sí se guarda cuando se escribió un nombre).
       cliente: (!clienteNoRegistrado && selectedClient)
         ? { clientCode: selectedClient.clientCode, clientName: selectedClient.clientName }
         : null,
+      newClienteData,
       itemsDiscountPercent,
       transDiscountID: (aplicarDescuento && tipoDescuento) || null,
       pago: { paymentMethod: formaPago, destAccountClabe: formaPago === 'digital' ? cuentaDestino : null },
@@ -258,6 +258,44 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
       },
       shippingCost: costoEnvioNum,
       totales: { base: totalFinal, conDescuento: totalConDescuento, final: totalConEnvio },
+    });
+  };
+
+  const handleRegisterSale = () => {
+    // El pago solo se decide aquí para variant="sale" — en un pedido
+    // (variant="order") el pago/anticipo se captura después, en OrderReview.
+    if (variant === 'sale') {
+      if (!formaPago) {
+        alert('Selecciona una forma de pago.');
+        return;
+      }
+      if (formaPago === 'digital' && !cuentaDestino) {
+        alert('Selecciona la cuenta destino del pago.');
+        return;
+      }
+    }
+    // Si se marcó "Cliente no registrado" y sí se escribió un nombre, antes
+    // de continuar se pregunta si se quiere dar de alta como cliente real.
+    if (clienteNoRegistrado && nombreCliente.trim()) {
+      setShowClienteConfirm(true);
+      return;
+    }
+    enviarRegistro(null);
+  };
+
+  // "Aceptar" -> se crea el cliente con los datos escritos. "Rechazar" -> no
+  // se crea ningún cliente; la transacción queda sin cliente asociado, igual
+  // que si nunca se hubiera escrito nada (los datos escritos se descartan).
+  const handleConfirmCliente = (registrar: boolean) => {
+    setShowClienteConfirm(false);
+    if (!registrar) {
+      enviarRegistro(null);
+      return;
+    }
+    enviarRegistro({
+      clientName: nombreCliente.trim(),
+      clientPhone1: telefono.trim() || undefined,
+      RFC: rfc.trim() || undefined,
     });
   };
 
@@ -676,6 +714,36 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
                 }}
                 disabled={!clientModal.pickedCode}
                 className="bg-[#3ab0e2] hover:bg-sky-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* "¿Desea registrar al cliente?" — aparece al continuar si "Cliente no
+          registrado" está marcado y sí se escribió un nombre. Rechazar
+          descarta esos datos: la transacción queda sin cliente asociado. */}
+      {showClienteConfirm && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm flex flex-col gap-4 animate-fade-in text-center">
+            <h2 className="text-lg font-semibold text-gray-900">¿Desea registrar al cliente?</h2>
+            <p className="text-sm text-gray-500">
+              {nombreCliente.trim()}
+              {telefono.trim() && ` · ${telefono.trim()}`}
+              {rfc.trim() && ` · ${rfc.trim()}`}
+            </p>
+            <div className="flex justify-center gap-3 mt-2">
+              <button
+                onClick={() => handleConfirmCliente(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 rounded transition-colors cursor-pointer"
+              >
+                Rechazar
+              </button>
+              <button
+                onClick={() => handleConfirmCliente(true)}
+                className="bg-[#3ab0e2] hover:bg-sky-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer"
               >
                 Aceptar
               </button>

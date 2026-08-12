@@ -110,9 +110,11 @@ export default function RegisterSale_Page() {
     setRegisteringSale(true);
     try {
       const result = await createSale({
-        // "Cliente no registrado" -> summaryData.cliente ya viene en null
-        // (ver SaleSummary): la venta se registra sin ningún cliente asociado.
+        // "Cliente no registrado" -> summaryData.cliente viene en null (ver
+        // SaleSummary); si sí se escribió un nombre, newClient lo manda a
+        // crear (el backend ya lo resuelve en processTransaction).
         clientCode: summaryData.cliente?.clientCode ?? null,
+        newClient: summaryData.newClienteData ?? undefined,
         items: summaryData.cartItems.map((item) => ({
           inventoryID: item.id,
           quantity: item.cantidad,
@@ -137,7 +139,7 @@ export default function RegisterSale_Page() {
         folio: result.folio ?? result.transactionID,
         fecha: new Date(),
         vendedor: authUser?.userName || '-',
-        cliente: summaryData.cliente?.clientName || 'Cliente no registrado',
+        cliente: summaryData.cliente?.clientName || summaryData.newClienteData?.clientName || 'Cliente no registrado',
         items: summaryData.cartItems.map((item) => ({
           nombre: item.nombre,
           cantidad: item.cantidad,

@@ -36,6 +36,7 @@ export async function createSale(payload: CreateSalePayload): Promise<SaleTransa
 
 export interface CreateOrderPayload {
   clientCode?: string | null;
+  newClient?: { clientName: string; clientPhone1?: string; RFC?: string };
   items: SaleItemPayload[];
   // A diferencia de la venta, el pedido puede quedar sin ningún pago todavía
   // (depositAmount 0 u omitido) — en ese caso paymentMethod/destAccountClabe

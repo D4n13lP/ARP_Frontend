@@ -74,7 +74,7 @@ export default function OrderReview({ orderData, onRegister, submitting = false 
             <div className="flex gap-2"><span className="font-bold w-32">Folio</span> <span className="text-gray-500 italic">Se asignará al confirmar</span></div>
             <div className="flex gap-2"><span className="font-bold w-32">Fecha de orden:</span> <span>{new Date().toLocaleDateString('es-MX', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'America/Mexico_City' })}</span></div>
             <div className="flex gap-2"><span className="font-bold w-32">Fecha de entrega:</span> <span>{orderData.entrega?.inmediata ? 'Inmediata' : (orderData.entrega?.dispatchDateI ? `${orderData.entrega.dispatchDateI} hasta ${orderData.entrega.dispatchDateF || '-'}` : '-')}</span></div>
-            <div className="flex gap-2"><span className="font-bold w-32">Cliente:</span> <span>{orderData.cliente ? orderData.cliente.clientName : 'Cliente no registrado'}</span></div>
+            <div className="flex gap-2"><span className="font-bold w-32">Cliente:</span> <span>{orderData.cliente ? orderData.cliente.clientName : (orderData.newClienteData ? orderData.newClienteData.clientName : 'Cliente no registrado')}</span></div>
             <div className="flex gap-2"><span className="font-bold w-32">Vendedor:</span> <span>{authUser?.userName || '-'}</span></div>
             <div className="flex gap-2"><span className="font-bold w-32">Repartidor:</span> <span>{orderData.entrega?.courierName || '-'}</span></div>
             <div className="flex gap-2">
