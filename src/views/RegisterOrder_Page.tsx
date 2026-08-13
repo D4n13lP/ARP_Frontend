@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Sparkles } from 'lucide-react';
 import ProductSearchTable, { type ProductData } from '../components/ProductSearchTable';
 import SaleSummary, { type CartItem, type SaleSummaryData } from '../components/SaleSummary';
 import OrderReview, { type OrderPayment } from '../components/OrderReview';
@@ -7,8 +7,11 @@ import TicketPrintModal, { type TicketData } from '../components/TicketPrintModa
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getInventories } from '../api/inventory';
 import { createOrder } from '../api/transactions';
+import { createSpecialOrderProduct } from '../api/products';
+import { getProductUnits, createProductUnit } from '../api/productUnits';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAppStore } from '../stores/useAppStore';
+import type { ProductUnit } from '../types';
 
 export default function RegisterOrder_Page() {
   const authUser = useAppStore((state) => state.authUser);
@@ -21,11 +24,23 @@ export default function RegisterOrder_Page() {
   const [amounts, setAmounts] = useState<Record<string, number>>({});
 
   // Estado para controlar en qué paso de la vista estamos
-  const [viewStep, setViewStep] = useState<'search' | 'summary' | 'review'>('search');
+  const [viewStep, setViewStep] = useState<'search' | 'summary' | 'review' | 'specialOrder'>('search');
   const [cartData, setCartData] = useState<CartItem[]>([]);
   const [orderSummaryData, setOrderSummaryData] = useState<SaleSummaryData | null>(null);
   const [registeringOrder, setRegisteringOrder] = useState(false);
   const [ticketData, setTicketData] = useState<TicketData | null>(null);
+
+  // "Orden Especial": crea un producto ad-hoc (prodType 'custom') y lo
+  // ingresa de una vez al almacén fijo "Pedido especial" — ver
+  // createSpecialOrderProduct. De ahí en adelante sigue el mismo flujo que
+  // una búsqueda normal (resumen -> revisión -> registro -> ticket).
+  const [productUnits, setProductUnits] = useState<ProductUnit[]>([]);
+  const [especialForm, setEspecialForm] = useState({ productName: '', description: '', salePrice: '', unidad: '', quantity: '' });
+  const [savingSpecialOrder, setSavingSpecialOrder] = useState(false);
+
+  useEffect(() => {
+    getProductUnits().then(setProductUnits).catch(() => {});
+  }, []);
 
   // La tabla de resultados sale de "inventory" (no de "product"): si el mismo
   // producto tiene existencia en varios almacenes, aparece una fila por cada
@@ -101,8 +116,91 @@ export default function RegisterOrder_Page() {
       unidad: item.product.unidad || '',
     }));
 
-    setCartData(newCartItems);
+    // Se combina con lo que ya hubiera en el carrito (p. ej. el producto de
+    // una Orden Especial) en vez de reemplazarlo — así se pueden agregar
+    // productos normales del inventario junto al de la orden especial.
+    setCartData((prev) => {
+      const merged = new Map(prev.map((item) => [item.id, item]));
+      for (const item of newCartItems) merged.set(item.id, item);
+      return Array.from(merged.values());
+    });
     setViewStep('summary');
+  };
+
+  // Botón "Continuar" del aviso compacto (orden especial registrada primero,
+  // sin buscar nada más todavía) — hace exactamente lo mismo que el botón
+  // "Agregar" de la tabla, tomando lo que ya está en "searchResults".
+  const handleContinuarConEspecial = () => {
+    const selected = searchResults
+      .filter((p) => amounts[p.id] > 0)
+      .map((p) => ({ product: p, amount: amounts[p.id] }));
+    handleAddSelectedProducts(selected);
+  };
+
+  const handleAbrirOrdenEspecial = () => {
+    setEspecialForm({ productName: '', description: '', salePrice: '', unidad: '', quantity: '' });
+    setViewStep('specialOrder');
+  };
+
+  const handleRegistrarOrdenEspecial = async () => {
+    if (!especialForm.productName.trim()) {
+      alert('Ingresa el nombre del producto.');
+      return;
+    }
+    const quantity = parseInt(especialForm.quantity, 10);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      alert('Ingresa una cantidad válida (entero de 1 o más).');
+      return;
+    }
+    setSavingSpecialOrder(true);
+    try {
+      // Misma resolución que categoría/unidad en ProductModal: se usa la
+      // unidad ya guardada si el nombre coincide, o se crea una nueva.
+      const trimmedUnidad = especialForm.unidad.trim();
+      let produnitID: string | undefined;
+      if (trimmedUnidad) {
+        const existing = productUnits.find((u) => u.produnitName.trim().toLowerCase() === trimmedUnidad.toLowerCase());
+        if (existing) {
+          produnitID = existing.produnitID;
+        } else {
+          const created = await createProductUnit(trimmedUnidad);
+          produnitID = created.produnitID;
+          setProductUnits((prev) => [...prev, created]);
+        }
+      }
+
+      const inventory = await createSpecialOrderProduct({
+        productName: especialForm.productName.trim(),
+        description: especialForm.description.trim() || undefined,
+        salePrice: Number(especialForm.salePrice) || 0,
+        produnitID,
+        quantity,
+      });
+
+      // Siempre se agrega como una fila más de "searchResults" (con la
+      // cantidad ya precargada) — nunca directo al carrito. Mientras no se
+      // haya buscado nada (hasSearched=false) se muestra el aviso compacto
+      // en vez de la tabla completa; en cuanto se busca algo (antes o
+      // después de esto), pasa a la tabla junto con los productos
+      // encontrados, con un solo botón "Agregar" para todo.
+      const newRow: ProductData = {
+        id: inventory.inventoryID,
+        nombre: inventory.product?.productName || especialForm.productName.trim(),
+        categoria: inventory.product?.category?.categoryName || '',
+        almacen: inventory.warehouse?.whname || '',
+        cantidadDisponible: inventory.quantity,
+        precio: Number(inventory.product?.salePrice ?? especialForm.salePrice) || 0,
+        promocion: 0,
+        unidad: inventory.product?.unit?.produnitName || '',
+      };
+      setSearchResults((prev) => [...prev, newRow]);
+      setAmounts((prev) => ({ ...prev, [newRow.id]: newRow.cantidadDisponible }));
+      setViewStep('search');
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo registrar la orden especial.'));
+    } finally {
+      setSavingSpecialOrder(false);
+    }
   };
 
   const handleProceedToReview = (summaryData: SaleSummaryData) => {
@@ -261,8 +359,37 @@ export default function RegisterOrder_Page() {
                     </button>
                   </div>
                 </div>
+
+                <div className="flex flex-col justify-end">
+                  <button
+                    onClick={handleAbrirOrdenEspecial}
+                    className="h-10 px-4 bg-gray-700 hover:bg-gray-900 text-white text-sm font-medium rounded shadow-sm transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Sparkles className="w-4 h-4" /> Orden Especial
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Aviso compacto: solo aparece cuando la orden especial se
+                registró primero y todavía no se ha buscado nada más — en
+                cuanto se hace una búsqueda (antes o después), esto se
+                reemplaza por la tabla de resultados con la misma fila
+                dentro (ver handleRegistrarOrdenEspecial/handleSearch). */}
+            {!hasSearched && searchResults.length > 0 && (
+              <div className="w-full max-w-6xl mx-auto px-4 mb-8 flex items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 rounded-lg py-3">
+                <span className="text-sm text-emerald-800">
+                  {searchResults.length === 1 ? '1 producto agregado al pedido.' : `${searchResults.length} productos agregados al pedido.`}
+                  {' '}Puedes seguir buscando para agregar más, o continuar.
+                </span>
+                <button
+                  onClick={handleContinuarConEspecial}
+                  className="shrink-0 bg-[#3ab0e2] hover:bg-sky-500 text-white px-6 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer"
+                >
+                  Continuar
+                </button>
+              </div>
+            )}
 
             {/* Tabla resultados de búsqueda */}
             <div className="w-full px-4 mb-20 max-w-6xl mx-auto">
@@ -279,6 +406,105 @@ export default function RegisterOrder_Page() {
               )}
             </div>
           </>
+        )}
+
+        {viewStep === 'specialOrder' && (
+          <div className="w-full max-w-2xl mx-auto mb-20">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 md:p-8 flex flex-col gap-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Orden especial</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Crea un producto especial para este pedido — se registra automáticamente en el almacén "Pedido especial".
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Nombre del producto</label>
+                  <input
+                    type="text"
+                    value={especialForm.productName}
+                    onChange={(e) => setEspecialForm((prev) => ({ ...prev, productName: e.target.value }))}
+                    placeholder="Ej. Mueble a medida"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#3ab0e2] text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Descripción</label>
+                  <textarea
+                    value={especialForm.description}
+                    onChange={(e) => setEspecialForm((prev) => ({ ...prev, description: e.target.value }))}
+                    rows={3}
+                    placeholder="Detalles del pedido especial"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#3ab0e2] text-sm resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Precio de venta</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={especialForm.salePrice}
+                      onChange={(e) => setEspecialForm((prev) => ({ ...prev, salePrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#3ab0e2] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Unidad</label>
+                    {/* Mismo patrón que categoría/unidad en ProductModal: input
+                        con datalist — elige una unidad ya guardada o escribe una
+                        nueva, que se crea al registrar la orden especial. */}
+                    <input
+                      type="text"
+                      list="ordenEspecialUnitsList"
+                      value={especialForm.unidad}
+                      onChange={(e) => setEspecialForm((prev) => ({ ...prev, unidad: e.target.value }))}
+                      placeholder="Escribe o elige una unidad"
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#3ab0e2] text-sm"
+                    />
+                    <datalist id="ordenEspecialUnitsList">
+                      {productUnits.map((u) => (
+                        <option key={u.produnitID} value={u.produnitName} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Cantidad</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      value={especialForm.quantity}
+                      onChange={(e) => setEspecialForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                      placeholder="1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#3ab0e2] text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => setViewStep('search')}
+                  className="px-6 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleRegistrarOrdenEspecial}
+                  disabled={savingSpecialOrder}
+                  className="bg-[#3ab0e2] hover:bg-sky-500 text-white px-8 py-2 rounded shadow-sm text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {savingSpecialOrder ? 'Registrando...' : 'Continuar'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {viewStep === 'summary' && (

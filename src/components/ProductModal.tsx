@@ -191,6 +191,7 @@ import {
   RotateCcw,
   Barcode,
   Printer,
+  TrendingUp,
 } from "lucide-react";
 import { useAppStore } from "../stores/useAppStore";
 import { updateProduct, deleteProduct } from "../api/products";
@@ -201,8 +202,34 @@ import { linkSupplierProduct, unlinkSupplierProduct } from "../api/suppProd";
 import { uploadPicture, deletePicture } from "../api/pictures";
 import { getTicketConfig } from "../api/ticketConfig";
 import { updatePromo } from "../api/promos";
+import { getMyPermissions } from "../api/userPermissions";
+import { getTimeUnits, createTimeUnit } from "../api/timeUnits";
+import {
+  getSalesExpectations,
+  createSalesExpectation,
+  updateSalesExpectation,
+  deleteSalesExpectation,
+} from "../api/salesExpectations";
 import { getErrorMessage } from "../utils/errorMessage";
-import type { Category, Picture, Product, ProductUnit, Supplier, TicketConfig } from "../types";
+import type { Category, Picture, Product, ProductUnit, SalesExpectation, Supplier, TicketConfig, TimeUnit } from "../types";
+
+// Mismas 3 unidades de tiempo fijas que ofrece AddProduct_Page (SalesPriceForm)
+// al registrar la expectativa de venta por primera vez — se reutiliza aquí el
+// mismo catálogo en vez de texto libre, para no terminar con filas de
+// "timeUnit" duplicadas por errores de tipeo.
+const EXPECTATION_UNIT_OPTIONS: Record<string, string> = {
+  días: "día(s)",
+  semanas: "semana(s)",
+  meses: "mes(es)",
+};
+
+// "YYYY-MM-DD" (DATEONLY tal cual lo manda el backend) -> "DD/MM/YYYY" sin
+// pasar por Date/toLocaleDateString, que puede recorrer un día hacia atrás
+// en husos horarios negativos (México) al interpretar la fecha como UTC.
+function formatDateOnly(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#e5e7eb"/><text x="50%" y="50%" font-family="sans-serif" font-size="28" fill="#9ca3af" text-anchor="middle" dominant-baseline="middle">Sin imagen</text></svg>'
@@ -232,9 +259,36 @@ export default function ProductModal() {
   const closeModal = useAppStore((state) => state.closeModal);
   const products = useAppStore((state) => state.products);
   const setProducts = useAppStore((state) => state.setProducts);
+  const authUser = useAppStore((state) => state.authUser);
 
   // --- ESTADOS LOCALES ---
   const [isEditing, setIsEditing] = useState(false);
+  // Se muestra como aviso fijo dentro del modal (no solo un alert que
+  // desaparece) cuando "Eliminar" falla — p. ej. porque el producto ya se
+  // usó en una venta/pedido registrado (el backend manda el motivo exacto).
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Editar/eliminar el producto vía este modal: admin siempre, vendedor solo
+  // si tiene canEdit activado para el módulo "product-details" (mismo
+  // permiso sin importar si el modal se abrió desde Inventario, el catálogo
+  // o la ficha de un proveedor). Se vuelve a pedir cada vez que el modal se
+  // ABRE (no solo una vez al montar la página) — este componente vive
+  // montado todo el tiempo detrás de escena y solo devuelve null cuando está
+  // cerrado, así que sin esto un permiso otorgado mientras la página ya
+  // estaba abierta no se reflejaba hasta recargar todo el navegador.
+  const [canEditProduct, setCanEditProduct] = useState(false);
+  useEffect(() => {
+    if (!isModalOpen) return;
+    if (authUser?.userType === 'admin') {
+      setCanEditProduct(true);
+      return;
+    }
+    getMyPermissions()
+      .then((perms) => {
+        const mod = perms.find((p) => p.module?.moduleKey === 'product-details');
+        setCanEditProduct(!!mod?.canEdit);
+      })
+      .catch(() => setCanEditProduct(false));
+  }, [authUser?.userType, isModalOpen]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [formData, setFormData] = useState<Product | null>(selectedProduct);
@@ -281,13 +335,45 @@ export default function ProductModal() {
   const [savingDiscount, setSavingDiscount] = useState(false);
   const [deletingDiscount, setDeletingDiscount] = useState(false);
 
+  // Expectativa de venta ("salesExpectation"): antes solo se registraba desde
+  // AddProduct_Page y nunca se volvía a mostrar en ningún lado — se agrega
+  // aquí para poder verla y editarla desde el modal, con el mismo permiso
+  // (canEditProduct / "product-details") que el resto de este modal.
+  const [expectation, setExpectation] = useState<SalesExpectation | null>(null);
+  const [timeUnits, setTimeUnits] = useState<TimeUnit[]>([]);
+  const [editingExpectation, setEditingExpectation] = useState(false);
+  const [expectationQuantityInput, setExpectationQuantityInput] = useState<number | string>('');
+  // Cuántas unidades de tiempo dura el plazo (p. ej. "3" en "cada 3 días") —
+  // antes existía este mismo input en SalesPriceForm pero nunca se guardaba.
+  const [expectationPeriodLengthInput, setExpectationPeriodLengthInput] = useState<number | string>(1);
+  const [expectationUnitInput, setExpectationUnitInput] = useState('días');
+  const [savingExpectation, setSavingExpectation] = useState(false);
+  const [deletingExpectation, setDeletingExpectation] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getCategories().then(setCategories);
     getProductUnits().then(setUnits).catch(() => {});
     getSuppliers().then(setSuppliers).catch(() => {});
+    getTimeUnits().then(setTimeUnits).catch(() => {});
   }, []);
+
+  // Trae la expectativa de venta del producto que se está viendo (a lo más
+  // una fila por producto en la práctica, aunque el modelo no lo obligue).
+  useEffect(() => {
+    if (!selectedProduct) return;
+    getSalesExpectations({ prodCode: selectedProduct.prodCode })
+      .then((items) => {
+        const item = items[0] ?? null;
+        setExpectation(item);
+        setExpectationQuantityInput(item ? item.quantity : '');
+        setExpectationPeriodLengthInput(item ? item.periodLength : 1);
+        setExpectationUnitInput(item?.timeUnit?.timeunitName || 'días');
+      })
+      .catch(() => setExpectation(null));
+    setEditingExpectation(false);
+  }, [selectedProduct]);
 
   // Sincronizar datos al abrir
   useEffect(() => {
@@ -301,6 +387,7 @@ export default function ProductModal() {
       setCurrentImgIndex(0);
       setIsEditing(false);
       setLabelMenuOpen(false);
+      setDeleteError(null);
     }
   }, [selectedProduct]);
 
@@ -433,12 +520,13 @@ export default function ProductModal() {
 
   const handleDelete = async () => {
     if (!window.confirm("¿Seguro que deseas eliminarlo?")) return;
+    setDeleteError(null);
     try {
       await deleteProduct(formData.prodCode);
       setProducts(products.filter((p) => p.prodCode !== formData.prodCode));
       closeModal();
     } catch (error: any) {
-      alert(error?.response?.data?.message || "No se pudo eliminar el producto.");
+      setDeleteError(error?.response?.data?.message || "No se pudo eliminar el producto.");
     }
   };
 
@@ -523,6 +611,86 @@ export default function ProductModal() {
       alert(getErrorMessage(error, "No se pudo eliminar el descuento."));
     } finally {
       setDeletingDiscount(false);
+    }
+  };
+
+  // Solo enteros >= 0 (igual que el patrón de cantidad de SalesPriceForm).
+  const handleExpectationQuantityChange = (val: string) => {
+    if (val === '') {
+      setExpectationQuantityInput('');
+      return;
+    }
+    const intVal = parseInt(val, 10);
+    if (!isNaN(intVal) && intVal >= 0 && /^\d+$/.test(val)) {
+      setExpectationQuantityInput(intVal);
+    }
+  };
+
+  // Solo enteros >= 1: la duración del plazo no puede ser cero.
+  const handleExpectationPeriodLengthChange = (val: string) => {
+    if (val === '') {
+      setExpectationPeriodLengthInput('');
+      return;
+    }
+    const intVal = parseInt(val, 10);
+    if (!isNaN(intVal) && intVal >= 1 && /^\d+$/.test(val)) {
+      setExpectationPeriodLengthInput(intVal);
+    }
+  };
+
+  const handleSaveExpectation = async () => {
+    if (expectationQuantityInput === '' || Number(expectationQuantityInput) <= 0) {
+      alert("Ingresa una cantidad válida.");
+      return;
+    }
+    if (expectationPeriodLengthInput === '' || Number(expectationPeriodLengthInput) <= 0) {
+      alert("Ingresa una duración de plazo válida.");
+      return;
+    }
+    setSavingExpectation(true);
+    try {
+      // Mismo patrón de "usar la existente o crearla" que categoría/unidad,
+      // pero sobre las 3 unidades de tiempo fijas en vez de texto libre.
+      const existingUnit = timeUnits.find((u) => u.timeunitName === expectationUnitInput);
+      const timeunitID = existingUnit ? existingUnit.timeunitID : (await createTimeUnit(expectationUnitInput)).timeunitID;
+      if (!existingUnit) setTimeUnits((prev) => [...prev, { timeunitID, timeunitName: expectationUnitInput }]);
+
+      const saved = expectation
+        ? await updateSalesExpectation(expectation.expectationID, {
+            quantity: Number(expectationQuantityInput),
+            timeunitID,
+            periodLength: Number(expectationPeriodLengthInput),
+          })
+        : await createSalesExpectation({
+            prodCode: formData.prodCode,
+            timeunitID,
+            quantity: Number(expectationQuantityInput),
+            periodLength: Number(expectationPeriodLengthInput),
+          });
+      setExpectation(saved);
+      setEditingExpectation(false);
+    } catch (error) {
+      alert(getErrorMessage(error, "No se pudo guardar la expectativa de venta."));
+    } finally {
+      setSavingExpectation(false);
+    }
+  };
+
+  const handleDeleteExpectation = async () => {
+    if (!expectation) return;
+    if (!window.confirm("¿Seguro que deseas eliminar la expectativa de venta de este producto?")) return;
+    setDeletingExpectation(true);
+    try {
+      await deleteSalesExpectation(expectation.expectationID);
+      setExpectation(null);
+      setExpectationQuantityInput('');
+      setExpectationPeriodLengthInput(1);
+      setExpectationUnitInput('días');
+      setEditingExpectation(false);
+    } catch (error) {
+      alert(getErrorMessage(error, "No se pudo eliminar la expectativa de venta."));
+    } finally {
+      setDeletingExpectation(false);
     }
   };
 
@@ -798,7 +966,8 @@ export default function ProductModal() {
 
             </div>
 
-            {/* 3. SECCIÃ“N DERECHA: DESCUENTO Y DESCRIPCIÃ“N (3 columnas) */}
+            {/* 3. SECCIÓN DERECHA: DESCUENTO Y EXPECTATIVA DE VENTA (3 columnas).
+                La descripción ya NO va aquí (ver más abajo, fuera del grid). */}
             <div className="lg:col-span-3 flex flex-col gap-8">
               {tieneDescuento ? (
                 // Tamaño dinámico: en solo-lectura, el bloque se ajusta nada
@@ -852,25 +1021,145 @@ export default function ProductModal() {
                 </div>
               )}
 
-              <div className="flex-grow">
-                <h4 className="font-black text-gray-400 border-b-4 border-emerald-500 inline-block mb-4 uppercase text-[11px] tracking-tighter">
-                  Descripción Técnica:
-                </h4>
-                {isEditing ? (
-                  <textarea
-                    className="w-full p-4 border-2 border-gray-200 rounded-2xl text-sm h-48 focus:border-emerald-500 outline-none transition-all bg-emerald-50/10"
-                    value={formData.description || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                  />
+              {/* Expectativa de venta: cuánto se espera vender por unidad de
+                  tiempo. Se guarda/edita/borra sola (no depende del "Editar"
+                  general del producto), igual que el bloque de descuento. */}
+              <div className={`text-center bg-sky-50 rounded-3xl border-2 border-sky-100 shadow-inner flex flex-col items-center transition-all ${editingExpectation ? 'p-6 gap-4' : 'p-4 gap-1'}`}>
+                <p className="text-xs font-black text-sky-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5" /> Expectativa de Venta
+                </p>
+                {editingExpectation ? (
+                  <>
+                    <div className="flex flex-col items-center gap-3 w-full">
+                      <div className="flex items-center gap-2 text-sky-900">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Cantidad"
+                          value={expectationQuantityInput}
+                          onChange={(e) => handleExpectationQuantityChange(e.target.value)}
+                          className="w-20 text-3xl font-black text-center bg-transparent border-b-4 border-sky-300 focus:border-sky-600 outline-none"
+                        />
+                        <span className="text-sm font-bold">unid. cada</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sky-900">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="1"
+                          value={expectationPeriodLengthInput}
+                          onChange={(e) => handleExpectationPeriodLengthChange(e.target.value)}
+                          className="w-12 text-lg font-black text-center bg-transparent border-b-2 border-sky-300 focus:border-sky-600 outline-none"
+                        />
+                        <select
+                          value={expectationUnitInput}
+                          onChange={(e) => setExpectationUnitInput(e.target.value)}
+                          className="border-b-2 border-sky-300 focus:border-sky-600 outline-none bg-transparent font-bold text-sky-900 text-sm px-2 py-1 cursor-pointer"
+                        >
+                          {Object.entries(EXPECTATION_UNIT_OPTIONS).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap justify-center">
+                      <button
+                        onClick={handleSaveExpectation}
+                        disabled={savingExpectation || expectationQuantityInput === '' || expectationPeriodLengthInput === ''}
+                        className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Check className="w-3.5 h-3.5" /> <span className="hidden md:inline">{savingExpectation ? "Guardando..." : "Guardar"}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingExpectation(false);
+                          setExpectationQuantityInput(expectation ? expectation.quantity : '');
+                          setExpectationPeriodLengthInput(expectation ? expectation.periodLength : 1);
+                          setExpectationUnitInput(expectation?.timeUnit?.timeunitName || 'días');
+                        }}
+                        className="flex items-center gap-1.5 bg-gray-400 hover:bg-gray-500 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> <span className="hidden md:inline">Cancelar</span>
+                      </button>
+                      {expectation && (
+                        <button
+                          onClick={handleDeleteExpectation}
+                          disabled={deletingExpectation}
+                          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-700 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> <span className="hidden md:inline">{deletingExpectation ? "Eliminando..." : "Eliminar"}</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : expectation ? (
+                  <>
+                    <p className="text-2xl font-black text-sky-900">
+                      {expectation.quantity} <span className="text-sm font-bold">unid. cada {expectation.periodLength} {EXPECTATION_UNIT_OPTIONS[expectation.timeUnit?.timeunitName || 'días'] || expectation.timeUnit?.timeunitName}</span>
+                    </p>
+                    <p className="text-sm font-bold text-sky-700">
+                      Vendido: {expectation.soldQuantity ?? 0} / {expectation.quantity}
+                    </p>
+                    <div className="w-full max-w-40 h-2 bg-sky-100 rounded-full overflow-hidden my-1">
+                      <div
+                        className={`h-full rounded-full ${expectation.fulfilled ? 'bg-emerald-500' : expectation.periodEnded ? 'bg-red-500' : 'bg-sky-500'}`}
+                        style={{ width: `${Math.min(100, Math.round(((expectation.soldQuantity ?? 0) / expectation.quantity) * 100))}%` }}
+                      />
+                    </div>
+                    {expectation.fulfilled ? (
+                      <span className="text-xs font-black text-emerald-700 bg-emerald-100 rounded-full px-3 py-1">✅ Cumplida</span>
+                    ) : expectation.periodEnded ? (
+                      <span className="text-xs font-black text-red-700 bg-red-100 rounded-full px-3 py-1">❌ No cumplida (venció {formatDateOnly(expectation.endDate)})</span>
+                    ) : (
+                      <span className="text-xs font-black text-sky-700 bg-sky-100 rounded-full px-3 py-1">⏳ En progreso · vence {formatDateOnly(expectation.endDate)}</span>
+                    )}
+                    {canEditProduct && (
+                      <button
+                        onClick={() => setEditingExpectation(true)}
+                        className="text-xs font-bold text-sky-600 hover:text-sky-800 underline mt-1 cursor-pointer"
+                      >
+                        Editar
+                      </button>
+                    )}
+                  </>
                 ) : (
-                  <p className="text-gray-600 leading-relaxed text-sm italic font-medium bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    {formData.description || "Sin descripción disponible."}
-                  </p>
+                  <>
+                    <p className="text-sm text-gray-400 italic">Sin expectativa registrada</p>
+                    {canEditProduct && (
+                      <button
+                        onClick={() => setEditingExpectation(true)}
+                        className="text-xs font-bold text-sky-600 hover:text-sky-800 underline mt-1 cursor-pointer"
+                      >
+                        + Agregar
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Descripción técnica: se movió fuera de la columna angosta de la
+              derecha (Descuento/Expectativa) para que pueda extenderse a todo
+              el ancho del modal — en esa columna un texto largo dejaba
+              muchísimo espacio en blanco debajo de las otras dos tarjetas. */}
+          <div className="mt-10">
+            <h4 className="font-black text-gray-400 border-b-4 border-emerald-500 inline-block mb-4 uppercase text-[11px] tracking-tighter">
+              Descripción Técnica:
+            </h4>
+            {isEditing ? (
+              <textarea
+                className="w-full p-4 border-2 border-gray-200 rounded-2xl text-sm h-40 focus:border-emerald-500 outline-none transition-all bg-emerald-50/10"
+                value={formData.description || ''}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+              />
+            ) : (
+              <p className="text-gray-600 leading-relaxed text-sm italic font-medium bg-gray-50 p-4 rounded-2xl border border-gray-100 whitespace-pre-wrap">
+                {formData.description || "Sin descripción disponible."}
+              </p>
+            )}
           </div>
 
           {/* BOTONES FINALES DE ACCIÓN — en celular (exclusivo), solo ícono,
@@ -910,19 +1199,33 @@ export default function ProductModal() {
                 </button>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="bg-[#3ab0e2] hover:bg-emerald-600 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base"
+                  disabled={!canEditProduct}
+                  title={canEditProduct ? undefined : 'No tienes permiso para editar productos'}
+                  className="bg-[#3ab0e2] hover:bg-emerald-600 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                 >
                   <Edit3 className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Editar</span>
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="bg-red-500 hover:bg-red-700 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base"
+                  disabled={!canEditProduct}
+                  title={canEditProduct ? undefined : 'No tienes permiso para eliminar productos'}
+                  className="bg-red-500 hover:bg-red-700 text-white px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black shadow-xl transition-all hover:-translate-y-2 cursor-pointer flex items-center gap-2 md:gap-3 uppercase tracking-wider text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                 >
                   <Trash2 className="w-4 h-4 md:w-5 md:h-5" /> <span className="hidden md:inline">Eliminar</span>
                 </button>
               </>
             )}
           </div>
+
+          {/* Motivo por el que no se pudo eliminar (p. ej. ya se usó en una
+              venta/pedido registrado) — se queda visible en vez de solo un
+              alert pasajero, hasta que se cierre el modal o se reintente. */}
+          {deleteError && (
+            <div className="mt-6 bg-red-50 border-2 border-red-200 text-red-700 text-sm rounded-2xl px-6 py-4 text-center">
+              <span className="font-black uppercase tracking-wide text-xs block mb-1">No se pudo eliminar</span>
+              {deleteError}
+            </div>
+          )}
         </div>
       </div>
 

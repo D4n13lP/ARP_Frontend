@@ -31,6 +31,10 @@ export const WarehouseSchema = z.object({
   whID: z.string(),
   whname: z.string(),
   whaddress: z.string().nullable().optional(),
+  // Almacén fijo "Pedido especial" (Orden Especial en RegisterOrder_Page):
+  // no se puede renombrar ni recibir stock manual (transferir/ingresar) —
+  // ver Inventory.tsx, donde se excluye como destino elegible.
+  isSpecialOrders: z.boolean().optional(),
 });
 export type Warehouse = z.infer<typeof WarehouseSchema>;
 
@@ -219,6 +223,9 @@ export const TransDetailSchema = z.object({
   prodCode: z.string(),
   product: ProductSchema.nullable().optional(),
   transDiscountID: z.string().nullable().optional(),
+  // De qué almacén se descontó este renglón — nulo en renglones históricos
+  // de antes de esta columna (ver Inventory.tsx, "Pendiente entrega").
+  whID: z.string().nullable().optional(),
 });
 export type TransDetail = z.infer<typeof TransDetailSchema>;
 
@@ -291,6 +298,16 @@ export const SalesExpectationSchema = z.object({
   quantity: z.coerce.number(),
   prodCode: z.string(),
   timeunitID: z.string(),
+  timeUnit: TimeUnitSchema.nullable().optional(),
+  // Cuántas unidades de timeUnit dura el plazo (p. ej. 3 = "cada 3 días").
+  periodLength: z.coerce.number().default(1),
+  startDate: z.string(),
+  endDate: z.string(),
+  // Calculados por el backend en cada consulta (ver salesExpectation.controller.ts),
+  // no son columnas propias de la tabla.
+  soldQuantity: z.coerce.number().optional(),
+  fulfilled: z.boolean().optional(),
+  periodEnded: z.boolean().optional(),
 });
 export type SalesExpectation = z.infer<typeof SalesExpectationSchema>;
 
@@ -378,6 +395,8 @@ export const DashboardSchema = z.object({
   recienLlegados: z.array(MetricTableItemSchema),
   productosRezagados: z.array(MetricTableItemSchema),
   ultimasVentas: z.array(MetricTableItemSchema),
+  pedidosPorVencer: z.array(MetricTableItemSchema),
+  usuariosTopVentas: z.array(MetricTableItemSchema),
 });
 export type Dashboard = z.infer<typeof DashboardSchema>;
 

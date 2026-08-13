@@ -156,7 +156,14 @@ export default function AddProduct_Page() {
         const timeUnits = await getTimeUnits()
         const existing = timeUnits.find(t => t.timeunitName === precioVenta.unidadTiempo)
         const timeunitID = existing ? existing.timeunitID : (await createTimeUnit(precioVenta.unidadTiempo)).timeunitID
-        await createSalesExpectation({ prodCode: newProduct.prodCode, timeunitID, quantity: Number(precioVenta.cantidad) })
+        await createSalesExpectation({
+          prodCode: newProduct.prodCode,
+          timeunitID,
+          quantity: Number(precioVenta.cantidad),
+          // Antes se capturaba en el formulario (cantTiempo) pero nunca se
+          // enviaba — la tabla no tenía dónde guardarlo (ver salesExpectation.model.ts).
+          periodLength: Number(precioVenta.cantTiempo) || 1,
+        })
       }
 
       completedRef.current = true

@@ -20,12 +20,16 @@ export interface MetricsSlice {
   recienLlegados: MetricTableItem[];
   productosRezagados: MetricTableItem[];
   ultimasVentas: MetricTableItem[];
+  pedidosPorVencer: MetricTableItem[];
+  usuariosTopVentas: MetricTableItem[];
   setMetrics: (data: {
     stats: MetricsSlice['stats'];
     masVendidos: MetricTableItem[];
     recienLlegados: MetricTableItem[];
     productosRezagados: MetricTableItem[];
     ultimasVentas: MetricTableItem[];
+    pedidosPorVencer: MetricTableItem[];
+    usuariosTopVentas: MetricTableItem[];
   }) => void;
 }
 
@@ -35,5 +39,7 @@ export const createMetricsSlice: StateCreator<MetricsSlice> = (set) => ({
   recienLlegados: [],
   productosRezagados: [],
   ultimasVentas: [],
+  pedidosPorVencer: [],
+  usuariosTopVentas: [],
   setMetrics: (data) => set(data),
 })

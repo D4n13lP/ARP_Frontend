@@ -9,6 +9,35 @@ import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
 import type { AuthUser, Module, UserPermission } from '../types';
 
+// Solo vistas con formularios editables (crean/editan/borran datos), más el
+// componente de detalles del producto (ProductModal, moduleKey
+// "product-details" — mismo permiso sin importar desde qué vista se abre),
+// la vista de Inventario, y "Proveedores" (menú de navegación, agregado a
+// pedido explícito aunque no tiene formulario propio). Se excluyen el resto
+// de las vistas de solo navegación y las de solo lectura (reportes,
+// historiales, catálogos). "product-details" es un módulo nuevo — hay que
+// insertarlo una vez en la tabla "module" (ver aviso en el chat).
+const EDITABLE_FORM_MODULE_KEYS = [
+  'add-product',
+  'register-products',
+  'clients',
+  'clients-discount',
+  'deliverymen',
+  'discount-adjustment',
+  'destination-account',
+  'register-order',
+  'register-sale',
+  'register-supplier',
+  'retiros',
+  'suppliers',
+  'supplier-detail',
+  'warehouses',
+  'promotion-setup',
+  'order-detail',
+  'inventory',
+  'product-details',
+];
+
 export default function OtherAccountSettings_Page() {
   const navigate = useNavigate();
   const authUser = useAppStore((state) => state.authUser);
@@ -59,14 +88,19 @@ export default function OtherAccountSettings_Page() {
 
   const selectedUser = users.find((u) => u.userID === selectedUserID) ?? null;
   const pendingCount = users.filter((u) => !u.isAllowed).length;
+  // Solo las vistas con formularios editables (+ Inventario y el modal de
+  // detalles del producto) — ver EDITABLE_FORM_MODULE_KEYS. El bloque "todas
+  // las vistas a la vez" (sin ninguna seleccionada) también opera sobre este
+  // subconjunto, no sobre el listado completo que devuelve el backend.
+  const visibleModules = modules.filter((m) => EDITABLE_FORM_MODULE_KEYS.includes(m.moduleKey));
 
   function permissionFor(userID: string, moduleID: string) {
     return permissions.find((p) => p.userID === userID && p.moduleID === moduleID);
   }
 
   function userHasAllModules(userID: string, field: 'canView' | 'canEdit') {
-    if (modules.length === 0) return false;
-    return modules.every((m) => permissionFor(userID, m.moduleID)?.[field] === true);
+    if (visibleModules.length === 0) return false;
+    return visibleModules.every((m) => permissionFor(userID, m.moduleID)?.[field] === true);
   }
 
   async function refreshPermissions() {
@@ -96,7 +130,7 @@ export default function OtherAccountSettings_Page() {
   async function handleToggleBulk(userID: string, field: 'canView' | 'canEdit', next: boolean) {
     setBusy(true);
     try {
-      await Promise.all(modules.map((m) => updateUserPermission(userID, m.moduleID, { [field]: next })));
+      await Promise.all(visibleModules.map((m) => updateUserPermission(userID, m.moduleID, { [field]: next })));
       await refreshPermissions();
     } catch (error) {
       alert(getErrorMessage(error, 'No se pudo actualizar el permiso.'));
@@ -153,7 +187,7 @@ export default function OtherAccountSettings_Page() {
               {selectedUser.userType === 'admin' && ' — es admin, tiene todo activado'}
             </p>
             <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto pr-2">
-              {modules.map((m) => {
+              {visibleModules.map((m) => {
                 const checked = selectedUser.userType === 'admin'
                   ? true
                   : permissionFor(selectedUser.userID, m.moduleID)?.canView ?? false;

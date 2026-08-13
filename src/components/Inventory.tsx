@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Tag, Boxes, Warehouse as WarehouseIcon, Settings, Clock, ArrowLeftRight } from 'lucide-react';
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Tag, Boxes, Warehouse as WarehouseIcon, Settings, Clock, ArrowLeftRight, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
-import { getInventories, updateInventory, transferInventory } from '../api/inventory';
+import { getInventories, updateInventory, transferInventory, deleteInventory } from '../api/inventory';
 import { getInventoryAdjustments } from '../api/inventoryAdjustments';
-import { getProducts } from '../api/products';
+import { getProducts, deleteProduct } from '../api/products';
+import { getTransactions } from '../api/transactions';
 import { getCategories } from '../api/categories';
 import { getWarehouses } from '../api/warehouses';
 import { getMyPermissions } from '../api/userPermissions';
@@ -14,6 +15,15 @@ import { formatDateTimeMX } from '../utils/formatDate';
 import ProductModal from './ProductModal';
 import type { InventoryRow } from '../stores/inventorySlice';
 import type { InventoryAdjustment, Warehouse } from '../types';
+
+// Blindaje extra además de la bandera isSpecialOrders: cualquier almacén con
+// este nombre exacto también se trata como protegido — cubre el caso de una
+// fila que ya existiera con el nombre pero sin la bandera puesta (mismo
+// respaldo que se agregó en el backend).
+const SPECIAL_ORDER_WAREHOUSE_NAME = 'Pedido especial';
+function esAlmacenEspecial(w: Warehouse): boolean {
+  return !!w.isSpecialOrders || w.whname === SPECIAL_ORDER_WAREHOUSE_NAME;
+}
 
 export default function Inventory() {
   const navigate = useNavigate();
@@ -33,6 +43,66 @@ export default function Inventory() {
   const [editingValue, setEditingValue] = useState('');
   const [confirmChange, setConfirmChange] = useState<{ row: InventoryRow; nextValue: number } | null>(null);
   const [savingQuantity, setSavingQuantity] = useState(false);
+
+  // Botón de basura en "Opciones": solo elimina el registro de inventario
+  // (producto+almacén) cuando la cantidad ya está en 0 — salvo en el almacén
+  // "Pedido especial", donde cualquier existencia sin reclamar es, por
+  // definición, una orden especial abandonada (nunca hay stock "real" ahí
+  // fuera de una orden puntual), así que ahí se puede borrar sin importar la
+  // cantidad. El backend además borra el producto "custom" huérfano si ya no
+  // le queda inventario en ningún lado y nunca se usó en una transacción real.
+  //
+  // Filas "virtuales" (inventoryID null — el producto nunca llegó a tener
+  // ninguna fila de inventario, p. ej. por una Orden Especial que falló a
+  // medias): no hay ningún registro de inventario que borrar, así que el
+  // mismo botón borra directamente el PRODUCTO (deleteProduct), que es lo
+  // único que realmente existe en ese caso.
+  const [deletingRowKey, setDeletingRowKey] = useState<string | null>(null);
+
+  function isRowInSpecialWarehouse(row: InventoryRow): boolean {
+    const wh = warehouses.find((w) => w.whID === row.whID);
+    return !!wh && esAlmacenEspecial(wh);
+  }
+
+  // Sin fila de inventario (producto "huérfano", sin almacén) siempre se
+  // puede borrar — se borra el producto directo, no hay cantidad que revisar.
+  function canDeleteRow(row: InventoryRow): boolean {
+    if (!row.inventoryID) return true;
+    return isRowInSpecialWarehouse(row) || row.stock === 0;
+  }
+
+  function deleteRowTitle(row: InventoryRow): string {
+    if (!row.inventoryID) return 'Eliminar producto (sin almacén asignado)';
+    if (!canDeleteRow(row)) return 'Solo se puede eliminar cuando la cantidad es 0';
+    return 'Eliminar registro de inventario';
+  }
+
+  async function handleDeleteInventoryRow(row: InventoryRow) {
+    if (!row.inventoryID) {
+      if (!window.confirm('Este producto no tiene ningún almacén asignado. ¿Eliminar el producto por completo?')) return;
+      setDeletingRowKey(row.id);
+      try {
+        await deleteProduct(row.prodCode);
+        setProductos(productos.filter((p) => p.id !== row.id));
+      } catch (error) {
+        alert(getErrorMessage(error, 'No se pudo eliminar el producto.'));
+      } finally {
+        setDeletingRowKey(null);
+      }
+      return;
+    }
+    if (!isRowInSpecialWarehouse(row) && row.stock !== 0) return;
+    if (!window.confirm('¿Seguro que deseas eliminar este registro de inventario?')) return;
+    setDeletingRowKey(row.id);
+    try {
+      await deleteInventory(row.inventoryID);
+      setProductos(productos.filter((p) => p.inventoryID !== row.inventoryID));
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo eliminar el registro de inventario.'));
+    } finally {
+      setDeletingRowKey(null);
+    }
+  }
 
   // Cambio de almacén (columna "Almacen" como desplegable) — flujo en dos pasos:
   // 1) elegir Transferir/Ingresar + cantidad, 2) confirmar (modal ya existente).
@@ -137,8 +207,26 @@ export default function Inventory() {
   // dos filas de inventario a la vez — la de origen y la de destino — así
   // que es más simple/confiable volver a pedir todo que parchear a mano).
   const reloadInventory = useCallback(() => {
-    return Promise.all([getInventories(), getProducts()])
-      .then(([inventarios, allProducts]) => {
+    return Promise.all([
+      getInventories(),
+      getProducts(),
+      // Pedidos activos = status 'pending' (todavía no entregados) — se suma
+      // la cantidad de cada renglón agrupada por producto+almacén (TransDetail
+      // ya guarda de qué almacén se descontó, ver processTransaction) para
+      // atribuir "Pendiente entrega" al almacén correcto y no duplicarlo en
+      // todos los almacenes donde existe el producto. Los renglones viejos
+      // (de antes de esta columna) traen whID nulo y quedan sin atribuir.
+      getTransactions({ transType: 'order', status: 'pending', includeDetails: true }),
+    ])
+      .then(([inventarios, allProducts, pedidosPendientes]) => {
+        const pendientesPorProductoAlmacen = new Map<string, number>();
+        for (const pedido of pedidosPendientes) {
+          for (const detalle of pedido.details || []) {
+            const key = `${detalle.prodCode}|${detalle.whID || ''}`;
+            pendientesPorProductoAlmacen.set(key, (pendientesPorProductoAlmacen.get(key) || 0) + detalle.quantity);
+          }
+        }
+
         const rows: InventoryRow[] = inventarios.map((inv) => ({
           id: inv.inventoryID,
           inventoryID: inv.inventoryID,
@@ -147,7 +235,7 @@ export default function Inventory() {
           nombre: inv.product?.productName || '',
           categoria: inv.product?.category?.categoryName || '',
           stock: inv.quantity,
-          pendientes: 0,
+          pendientes: pendientesPorProductoAlmacen.get(`${inv.prodCode}|${inv.whID}`) || 0,
           estado: inv.quantity === 0 ? 'Agotado' : 'Disponible',
           almacen: inv.warehouse?.whname || '',
           whID: inv.whID,
@@ -169,7 +257,7 @@ export default function Inventory() {
             nombre: p.productName,
             categoria: p.category?.categoryName || '',
             stock: 0,
-            pendientes: 0,
+            pendientes: pendientesPorProductoAlmacen.get(`${p.prodCode}|`) || 0,
             estado: 'Agotado',
             almacen: '',
             whID: '',
@@ -326,7 +414,7 @@ export default function Inventory() {
         { label: `Producto (${totalProducts})`, key: 'nombre' },
         { label: `Categoría (${totalCategories})`, key: 'categoria' },
         { label: 'Cantidad disponible', key: 'stock' },
-        { label: 'Pendientes de entregar', key: 'pendientes' },
+        { label: 'Pendiente entrega', key: 'pendientes' },
         { label: 'Estado', key: 'estado' },
         { label: 'Almacen', key: 'almacen' },
         { label: 'Opciones', key: 'opciones' },
@@ -676,7 +764,10 @@ export default function Inventory() {
                               className="border border-gray-300 rounded px-2 py-1 text-sm bg-white cursor-pointer focus:border-sky-400 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {!prod.whID && <option value="">Sin asignar</option>}
-                              {warehouses.map((w) => (
+                              {/* El almacén de Pedidos especiales no puede recibir
+                                  stock manual — solo se deja elegible si ya es el
+                                  almacén actual de esta fila (para mostrarlo bien). */}
+                              {warehouses.filter((w) => !esAlmacenEspecial(w) || w.whID === prod.whID).map((w) => (
                                 <option key={w.whID} value={w.whID}>{w.whname}</option>
                               ))}
                             </select>
@@ -685,13 +776,23 @@ export default function Inventory() {
                           )}
                         </td>
                         <td className="px-4 text-center">
-                          <button
-                            onClick={() => prod.product && openModal(prod.product)}
-                            disabled={!prod.product}
-                            className="text-sky-500 hover:text-sky-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
-                          >
-                            Ver
-                          </button>
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              onClick={() => prod.product && openModal(prod.product)}
+                              disabled={!prod.product}
+                              className="text-sky-500 hover:text-sky-700 font-medium disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              Ver
+                            </button>
+                            <button
+                              onClick={() => handleDeleteInventoryRow(prod)}
+                              disabled={!canEditInventory || !canDeleteRow(prod) || deletingRowKey === prod.id}
+                              title={deleteRowTitle(prod)}
+                              className="text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -849,7 +950,7 @@ export default function Inventory() {
                           className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white cursor-pointer focus:border-sky-400 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {!prod.whID && <option value="">Sin asignar</option>}
-                          {warehouses.map((w) => (
+                          {warehouses.filter((w) => !esAlmacenEspecial(w) || w.whID === prod.whID).map((w) => (
                             <option key={w.whID} value={w.whID}>{w.whname}</option>
                           ))}
                         </select>
@@ -859,13 +960,23 @@ export default function Inventory() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => prod.product && openModal(prod.product)}
-                    disabled={!prod.product}
-                    className="w-full py-2 bg-sky-50 text-sky-700 font-medium text-xs rounded-lg active:bg-sky-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    Ver detalles del producto
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => prod.product && openModal(prod.product)}
+                      disabled={!prod.product}
+                      className="flex-1 py-2 bg-sky-50 text-sky-700 font-medium text-xs rounded-lg active:bg-sky-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Ver detalles del producto
+                    </button>
+                    <button
+                      onClick={() => handleDeleteInventoryRow(prod)}
+                      disabled={!canEditInventory || !canDeleteRow(prod) || deletingRowKey === prod.id}
+                      title={deleteRowTitle(prod)}
+                      className="shrink-0 p-2 bg-red-50 text-red-600 rounded-lg active:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )) : (
                 <p className="text-center text-gray-400 text-sm py-6">No hay productos que mostrar.</p>

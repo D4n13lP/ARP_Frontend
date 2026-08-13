@@ -35,3 +35,9 @@ export async function transferInventory(payload: {
 }): Promise<void> {
   await http.post('/inventories/transfer', payload)
 }
+
+// Borra el registro de inventario (producto+almacén) por completo — se usa
+// en Inventory.tsx, solo habilitado en el frontend cuando la cantidad es 0.
+export async function deleteInventory(inventoryID: string): Promise<void> {
+  await http.delete(`/inventories/${inventoryID}`)
+}
