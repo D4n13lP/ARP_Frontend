@@ -18,7 +18,11 @@ export interface TicketItem {
 // (no hace falta volver a pedirle nada al backend, salvo los textos/etiquetas
 // del ticket — ver TicketConfig, editable en EditTicketConfig_Page).
 export interface TicketData {
-  tipo: 'venta' | 'pedido';
+  // 'abono': recibo de un pago parcial sobre un pedido ya existente
+  // (OrderDetail_Page, "Abonar importe") — se comporta como 'pedido' para
+  // mostrar domicilio/fecha de entrega/anticipo/restante, solo cambia el
+  // título del menú ("Abono registrado").
+  tipo: 'venta' | 'pedido' | 'abono';
   folio: string;
   fecha: Date;
   vendedor: string;
@@ -161,7 +165,7 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
             <div className="flex flex-col gap-4">
               <div className="text-center">
                 <h2 className="text-lg font-bold text-gray-900">
-                  {data.tipo === 'venta' ? 'Venta registrada' : 'Pedido registrado'}
+                  {data.tipo === 'venta' ? 'Venta registrada' : data.tipo === 'abono' ? 'Abono registrado' : 'Pedido registrado'}
                 </h2>
                 <p className="text-sm text-gray-500">Folio {data.folio}</p>
               </div>
@@ -306,7 +310,7 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
         <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
 
         <div>{ticketConfig.lblCliente} {data.cliente}</div>
-        {data.tipo === 'pedido' && (
+        {(data.tipo === 'pedido' || data.tipo === 'abono') && (
           <>
             <div>{ticketConfig.lblDomicilio} {data.domicilio || '-'}</div>
             <div>{ticketConfig.lblFechaEntrega} {data.fechaEntrega || '-'}</div>
@@ -341,7 +345,7 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
           <div>{ticketConfig.lblDescuento} {formatMoney(data.descuento)}</div>
           <div>{ticketConfig.lblCostoEnvio} {formatMoney(data.costoEnvio)}</div>
           <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblTotal} {formatMoney(data.total)}</div>
-          {data.tipo === 'pedido' && (
+          {(data.tipo === 'pedido' || data.tipo === 'abono') && (
             <>
               <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblAnticipo} {formatMoney(data.anticipo || 0)}</div>
               <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblRestante} {formatMoney(data.restante || 0)}</div>

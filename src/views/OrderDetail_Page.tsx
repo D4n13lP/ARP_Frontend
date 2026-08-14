@@ -2,19 +2,24 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Receipt } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
+import { useAppStore } from '../stores/useAppStore';
 import { getTransactionById, updateTransactionStatus, addPayment } from '../api/transactions';
 import { getDestAccounts } from '../api/destAccounts';
 import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getImporteACuenta, formatMoney } from '../utils/orderDisplay';
+import { toLocalDateOnly } from '../utils/localDate';
+import TicketPrintModal, { type TicketData } from '../components/TicketPrintModal';
 import type { DestAccount, Transaction } from '../types';
 
 export default function OrderDetail_Page() {
   const navigate = useNavigate();
   const { transactionID } = useParams();
+  const authUser = useAppStore((state) => state.authUser);
 
   const [order, setOrder] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [destAccounts, setDestAccounts] = useState<DestAccount[]>([]);
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'digital' | ''>('');
   const [destinationAccount, setDestinationAccount] = useState('');
@@ -76,6 +81,41 @@ export default function OrderDetail_Page() {
         destAccountClabe: paymentMethod === 'digital' ? destinationAccount : null,
       });
       setOrder(updated);
+
+      // Ticket del abono — mismo mecanismo (TicketPrintModal) que
+      // RegisterSale_Page/RegisterOrder_Page. Reconstruye subtotal/descuento
+      // a partir de los renglones (unitPrice sin descontar vs. subtotal ya
+      // descontado) y el costo de envío como el residuo contra finalAmount,
+      // porque el pedido ya no trae esos 3 valores por separado aquí.
+      const details = updated.details || [];
+      const subtotalBruto = details.reduce((sum, d) => sum + Number(d.unitPrice) * d.quantity, 0);
+      const subtotalConDescuento = details.reduce((sum, d) => sum + Number(d.subtotal), 0);
+      const destAccountAlias = destAccounts.find((a) => a.clabe === destinationAccount)?.accountAlias;
+      setTicketData({
+        tipo: 'abono',
+        folio: updated.folio ?? updated.transactionID,
+        fecha: new Date(),
+        vendedor: authUser?.userName || '-',
+        cliente: updated.client?.clientName || 'Cliente no registrado',
+        domicilio: getLugarEntrega(updated),
+        fechaEntrega: formatDeliveryDate(updated),
+        items: details.map((item) => ({
+          nombre: item.product?.productName || '',
+          cantidad: item.quantity,
+          precio: item.unitPrice,
+          importe: item.subtotal,
+        })),
+        subtotal: subtotalBruto,
+        descuento: subtotalBruto - subtotalConDescuento,
+        costoEnvio: Math.max(0, updated.finalAmount - subtotalConDescuento),
+        total: updated.finalAmount,
+        anticipo: getImporteACuenta(updated),
+        restante: updated.outstandingAmount,
+        tipoPago: paymentMethod === 'cash' ? 'Efectivo' : (destAccountAlias ? `Transferencia / tarjeta — ${destAccountAlias}` : 'Transferencia / tarjeta'),
+        totalPago: amount,
+        metodoPagoEsEfectivo: paymentMethod === 'cash',
+      });
+
       setPaymentAmount('');
       setPaymentMethod('');
       setDestinationAccount('');
@@ -94,7 +134,10 @@ export default function OrderDetail_Page() {
     }
     setSaving(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      // Hora local del navegador, no UTC — con toISOString() esto se
+      // adelantaba hasta 6 horas (un día calendario completo) entre las
+      // 18:00 y las 23:59, dejando deliveryDate con la fecha de "mañana".
+      const today = toLocalDateOnly();
       await updateTransactionStatus(order.transactionID, {
         status: deliveryStatus,
         deliveryDate: deliveryStatus === 'completed' ? today : order.deliveryDate,
@@ -376,6 +419,8 @@ export default function OrderDetail_Page() {
         </div>
       </div>
       )}
+
+      <TicketPrintModal key={ticketData?.folio ?? 'closed'} data={ticketData} onClose={() => setTicketData(null)} />
     </div>
   );
 }

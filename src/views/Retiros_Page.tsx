@@ -107,6 +107,10 @@ export default function Retiros_Page() {
         ownUserID: targetUserID,
         adminUserID: authUser.userID,
         withdrawalAmount: amount,
+        // Instante real en UTC a propósito (igual que paymentDate/adjustmentDate
+        // en el backend) — si algún día se muestra esta fecha en pantalla,
+        // debe formatearse con formatDateTimeMX (utils/formatDate.ts), que ya
+        // convierte a hora de México, no guardarla aquí como hora local.
         withdrawalDate: new Date().toISOString(),
       });
       // Se vuelve a calcular contra el servidor en vez de solo restar

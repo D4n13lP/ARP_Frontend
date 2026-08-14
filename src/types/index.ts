@@ -397,6 +397,10 @@ export const DashboardSchema = z.object({
   ultimasVentas: z.array(MetricTableItemSchema),
   pedidosPorVencer: z.array(MetricTableItemSchema),
   usuariosTopVentas: z.array(MetricTableItemSchema),
+  productosStockBajo: z.array(MetricTableItemSchema),
+  // Periodo (en días) que el backend realmente aplicó a usuariosTopVentas —
+  // ver selector de periodo en DashboardPage (solo admin puede cambiarlo).
+  ventasPeriodDays: z.coerce.number().default(7),
 });
 export type Dashboard = z.infer<typeof DashboardSchema>;
 

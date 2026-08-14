@@ -22,6 +22,10 @@ export interface MetricsSlice {
   ultimasVentas: MetricTableItem[];
   pedidosPorVencer: MetricTableItem[];
   usuariosTopVentas: MetricTableItem[];
+  productosStockBajo: MetricTableItem[];
+  // Periodo (en días) que el backend aplicó a usuariosTopVentas — ver
+  // selector en DashboardPage (solo admin puede cambiarlo).
+  ventasPeriodDays: number;
   setMetrics: (data: {
     stats: MetricsSlice['stats'];
     masVendidos: MetricTableItem[];
@@ -30,6 +34,8 @@ export interface MetricsSlice {
     ultimasVentas: MetricTableItem[];
     pedidosPorVencer: MetricTableItem[];
     usuariosTopVentas: MetricTableItem[];
+    productosStockBajo: MetricTableItem[];
+    ventasPeriodDays: number;
   }) => void;
 }
 
@@ -41,5 +47,7 @@ export const createMetricsSlice: StateCreator<MetricsSlice> = (set) => ({
   ultimasVentas: [],
   pedidosPorVencer: [],
   usuariosTopVentas: [],
+  productosStockBajo: [],
+  ventasPeriodDays: 7,
   setMetrics: (data) => set(data),
 })

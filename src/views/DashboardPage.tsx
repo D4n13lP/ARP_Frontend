@@ -1,14 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { getDashboardMetrics } from '../api/dashboard';
 import type { MetricTableItem } from '../types';
 
 export default function IndicatorsPage() {
-  const { stats, masVendidos, recienLlegados, productosRezagados, ultimasVentas, pedidosPorVencer, usuariosTopVentas, setMetrics } = useAppStore();
+  const { stats, masVendidos, recienLlegados, productosRezagados, ultimasVentas, pedidosPorVencer, usuariosTopVentas, productosStockBajo, setMetrics } = useAppStore();
+  const authUser = useAppStore((state) => state.authUser);
+  const isAdmin = authUser?.userType === 'admin';
+
+  // Periodo de USUARIOS CON MÁS VENTAS — solo el admin puede cambiarlo desde
+  // el selector en el encabezado de esa tabla (ver headerExtra más abajo);
+  // para cualquier otro tipo de cuenta se queda fijo en 7 días.
+  const [ventasPeriodDays, setVentasPeriodDays] = useState<7 | 30>(7);
 
   useEffect(() => {
-    getDashboardMetrics().then(setMetrics);
-  }, [setMetrics]);
+    getDashboardMetrics(ventasPeriodDays).then(setMetrics);
+  }, [setMetrics, ventasPeriodDays]);
 
   const fechaActual = new Intl.DateTimeFormat('es-ES', {
     day: '2-digit',
@@ -28,7 +35,7 @@ export default function IndicatorsPage() {
 
         {/* Sección de Tarjetas: Centradas mediante grid y mx-auto */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 justify-items-center">
-          <StatCard color="bg-[#ffcc33]" icon="$" value={stats.ventas.toLocaleString()} label="Ventas" />
+          <StatCard color="bg-[#ffcc33]" icon="$" value={stats.ventas.toLocaleString()} label="Ingresos del día" />
           <StatCard color="bg-[#e35336]" icon="🛒" value={stats.pedidos} label="Pedidos" />
           <StatCard color="bg-[#af5c37]" icon="🕸️" value={stats.rezagados} label="Rezagados" />
         </div>
@@ -67,12 +74,31 @@ export default function IndicatorsPage() {
             columns={['#', 'Pedido', 'Cantidad', 'Tiempo']}
           />
           <MetricTable
-            title="USUARIOS CON MÁS VENTAS"
+            title={`USUARIOS CON MÁS VENTAS (${ventasPeriodDays === 7 ? 'ÚLTIMOS 7 DÍAS' : 'ÚLTIMO MES'})`}
             data={usuariosTopVentas}
-            // Suma de ventas (transType "sale") registradas por cada usuario,
-            // no pedidos — "Cantidad" es el número de ventas, "Importe" el
-            // monto acumulado.
+            // Suma de ventas (transType "sale") del periodo elegido
+            // registradas por cada usuario, no pedidos — "Cantidad" es el
+            // número de ventas, "Importe" el monto acumulado en esa ventana.
             columns={['#', 'Usuario', 'Cantidad', 'Importe']}
+            headerExtra={isAdmin ? (
+              <select
+                value={ventasPeriodDays}
+                onChange={(e) => setVentasPeriodDays(Number(e.target.value) === 30 ? 30 : 7)}
+                title="Periodo de esta tabla (solo admin)"
+                className="text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded px-2 py-1 cursor-pointer normal-case tracking-normal"
+              >
+                <option value={7}>7 días</option>
+                <option value={30}>1 mes</option>
+              </select>
+            ) : undefined}
+          />
+          <MetricTable
+            title="PRODUCTOS CON STOCK BAJO"
+            data={productosStockBajo}
+            // Inventario disponible (sumando todos los almacenes) igual o
+            // menor a "lowStock" del producto — "Cantidad" es el stock
+            // actual, "Mínimo" el umbral configurado.
+            columns={['#', 'Producto', 'Cantidad', 'Mínimo']}
           />
         </div>
       </div>
@@ -109,6 +135,7 @@ function formatMetricValue(col: string, item: MetricTableItem): string {
         ? `$${item.importe.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : '';
     case 'Tiempo':
+    case 'Mínimo':
       return item.tiempo || '';
     default:
       return '';
@@ -116,13 +143,14 @@ function formatMetricValue(col: string, item: MetricTableItem): string {
 }
 
 // Sub-componente Tabla (Con sombra suave y bordes rectos como la imagen)
-function MetricTable({ title, data, columns }: { title: string, data: MetricTableItem[], columns: string[] }) {
+function MetricTable({ title, data, columns, headerExtra }: { title: string, data: MetricTableItem[], columns: string[], headerExtra?: ReactNode }) {
   const extraColumns = columns.slice(2);
 
   return (
     <div className="flex flex-col shadow-[0_4px_10px_rgba(0,0,0,0.1)] rounded-sm">
-      <div className="bg-[#dcdcdc] py-2 px-4 text-center font-bold text-gray-700 uppercase text-sm tracking-wide border-b border-gray-300">
-        {title}
+      <div className="bg-[#dcdcdc] py-2 px-4 font-bold text-gray-700 uppercase text-sm tracking-wide border-b border-gray-300 flex items-center gap-3">
+        <span className={`flex-1 ${headerExtra ? 'text-left' : 'text-center'}`}>{title}</span>
+        {headerExtra}
       </div>
       <div className="bg-white p-5">
         {/* Escritorio/tablet (>= md), intacta */}
