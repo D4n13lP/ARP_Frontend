@@ -4,6 +4,7 @@ import Layout from './layouts/Layout'
 import RequireAuth from './layouts/RequireAuth'
 import ModuleGuard from './components/ModuleGuard'
 import AdminOnlyGuard from './components/AdminOnlyGuard'
+import { FullPageLoader } from './components/LoadingSpinner'
 import { ROUTES } from "./routes";
 
 const OtherAccountSettings_Page = lazy(() => import('./views/OtherAccountSettings_Page'))
@@ -50,7 +51,7 @@ const EditTicketConfig_Page = lazy(() => import('./views/EditTicketConfig_Page')
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<div>Cargando...</div>}>
+      <Suspense fallback={<FullPageLoader />}>
         <Routes>
 
           {/* Login y registro fuera del layout: son públicos, no hay sesión todavía */}

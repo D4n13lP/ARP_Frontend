@@ -5,6 +5,7 @@ import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTransactions } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatDeliveryDate, getEstadoEntregaLabel, getVendedorName, getClienteNombre, getLugarEntrega, getImporteACuenta, formatMoney } from '../utils/orderDisplay';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { Transaction } from '../types';
 
 export default function UpdateOrder_Page() {
@@ -73,6 +74,11 @@ export default function UpdateOrder_Page() {
             </tr>
           </thead>
           <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={11}><LoadingSpinner /></td>
+              </tr>
+            )}
             {!loading && orders.length === 0 && (
               <tr>
                 <td colSpan={11} className="py-8 text-gray-400 italic">
@@ -108,6 +114,7 @@ export default function UpdateOrder_Page() {
 
       {/* Tarjetas — celulares (< md). Mismos datos que la tabla. */}
       <div className="w-full max-w-7xl mt-4 px-2 md:hidden flex flex-col gap-3">
+        {loading && <LoadingSpinner />}
         {!loading && orders.length === 0 && (
           <p className="text-center text-gray-400 italic py-8">No hay pedidos pendientes de entrega.</p>
         )}

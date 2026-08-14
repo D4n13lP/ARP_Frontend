@@ -6,6 +6,7 @@ import { getClientById } from '../api/clients';
 import { getTransactions } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatMoney } from '../utils/orderDisplay';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { Client, Transaction } from '../types';
 
 type Periodo = 'Último mes' | 'Últimos 3 meses' | 'Últimos 6 meses' | 'Último año';
@@ -85,7 +86,7 @@ export default function ClientHistory_Page() {
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-400">Cargando...</p>
+        <LoadingSpinner />
       ) : (
         <div className="w-full max-w-6xl flex flex-col gap-8 px-4">
 

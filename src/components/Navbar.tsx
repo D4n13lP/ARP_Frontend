@@ -394,7 +394,7 @@ export default function Navbar({
 
               <button type="button" onClick={() => go("/")} className={navBtn}>
                 <span className="opacity-90 text-xl">📈</span>
-                <span className="font-medium">Indicadores</span>
+                <span className="font-medium">Métricas</span>
               </button>
             </div>
           </div>

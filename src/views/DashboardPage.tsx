@@ -30,14 +30,14 @@ export default function IndicatorsPage() {
         
         {/* Título - Alineado a la izquierda del contenedor centrado */}
         <h1 className="text-3xl md:text-4xl font-normal text-[#e65100] mb-10">
-          Indicadores {fechaActual}
+          Métricas {fechaActual}
         </h1>
 
         {/* Sección de Tarjetas: Centradas mediante grid y mx-auto */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 justify-items-center">
-          <StatCard color="bg-[#ffcc33]" icon="$" value={stats.ventas.toLocaleString()} label="Ingresos del día" />
-          <StatCard color="bg-[#e35336]" icon="🛒" value={stats.pedidos} label="Pedidos" />
-          <StatCard color="bg-[#af5c37]" icon="🕸️" value={stats.rezagados} label="Rezagados" />
+          <StatCard color="bg-[#ffcc33]" icon="$" value={stats.ventas.toLocaleString('es-MX')} label="Ingresos del día" />
+          <StatCard color="bg-[#e35336]" icon="🛒" value={stats.pedidos.toLocaleString('es-MX')} label="Pedidos" />
+          <StatCard color="bg-[#af5c37]" icon="🕸️" value={stats.rezagados.toLocaleString('es-MX')} label="Rezagados" />
         </div>
 
         {/* Sección de Tablas: Grid de 2 columnas centrado */}

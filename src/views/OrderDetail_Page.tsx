@@ -9,6 +9,7 @@ import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getImporteACuenta, formatMoney } from '../utils/orderDisplay';
 import { toLocalDateOnly } from '../utils/localDate';
 import TicketPrintModal, { type TicketData } from '../components/TicketPrintModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { DestAccount, Transaction } from '../types';
 
 export default function OrderDetail_Page() {
@@ -186,7 +187,7 @@ export default function OrderDetail_Page() {
       </h2>
 
       {loading ? (
-        <p className="text-gray-500">Cargando...</p>
+        <LoadingSpinner />
       ) : !order ? (
         <p className="text-gray-500">No se encontró el pedido.</p>
       ) : (

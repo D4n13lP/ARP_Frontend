@@ -4,6 +4,7 @@ import { Receipt, Tag } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTicketConfig, updateTicketConfig } from '../api/ticketConfig';
 import { getErrorMessage } from '../utils/errorMessage';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { TicketConfig } from '../types';
 
 interface FieldProps {
@@ -216,7 +217,7 @@ export default function EditTicketConfig_Page() {
       </div>
 
       {loading || !form ? (
-        <p className="text-gray-500">Cargando configuración...</p>
+        <LoadingSpinner label="Cargando configuración..." />
       ) : view === 'menu' ? (
         /* ==================== MENÚ: elegir qué editar ==================== */
         <div className="w-full max-w-3xl flex flex-col md:flex-row gap-6 justify-center mb-16">

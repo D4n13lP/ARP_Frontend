@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { verifyEmail } from '../api/auth';
 import { getErrorMessage } from '../utils/errorMessage';
 import { ROUTES } from '../routes';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 type Status = 'loading' | 'success' | 'error';
 
@@ -37,12 +38,7 @@ export default function VerifyEmail_Page() {
       <div className="w-full max-w-md flex flex-col items-center text-center gap-6">
         <img src={logoEmpresa} alt="Logo Empresa" className="h-20 w-auto object-contain max-lg:portrait:hidden" />
 
-        {status === 'loading' && (
-          <>
-            <Loader2 className="animate-spin text-[#3ab0e2]" size={48} strokeWidth={1.5} />
-            <p className="text-gray-600">Activando tu cuenta...</p>
-          </>
-        )}
+        {status === 'loading' && <LoadingSpinner label="Activando tu cuenta..." size={48} />}
 
         {status === 'success' && (
           <>

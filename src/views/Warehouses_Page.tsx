@@ -6,6 +6,7 @@ import { ROUTES } from '../routes';
 import { getWarehouses, createWarehouse, deleteWarehouse } from '../api/warehouses';
 import { getInventories } from '../api/inventory';
 import { getErrorMessage } from '../utils/errorMessage';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { Warehouse } from '../types';
 
 export default function Warehouses_Page() {
@@ -149,6 +150,11 @@ export default function Warehouses_Page() {
                   </td>
                 </tr>
               ))}
+              {loading && (
+                <tr>
+                  <td colSpan={3}><LoadingSpinner /></td>
+                </tr>
+              )}
               {!loading && almacenes.length === 0 && (
                 <tr>
                   <td colSpan={3} className="p-12 text-center text-gray-400 italic bg-gray-50/50">
@@ -162,6 +168,7 @@ export default function Warehouses_Page() {
 
         {/* Tarjetas — celulares (< md). Mismos datos/handler que la tabla. */}
         <div className="md:hidden flex flex-col gap-3">
+          {loading && <LoadingSpinner />}
           {almacenes.map((almacen) => (
             <div key={almacen.whID} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-3">
               <div className="min-w-0">

@@ -4,6 +4,7 @@ import { Settings2, ArrowLeft, Save } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTransDiscounts, updateTransDiscount, createTransDiscount } from '../api/transDiscounts';
 import { getErrorMessage } from '../utils/errorMessage';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { TransDiscount } from '../types';
 
 export default function DiscountAdjustments_Page() {
@@ -93,7 +94,7 @@ export default function DiscountAdjustments_Page() {
         </div>
 
         {loading ? (
-          <p className="text-center text-gray-400">Cargando...</p>
+          <LoadingSpinner />
         ) : (
           <div className="bg-white border border-gray-100 rounded-xl p-10 shadow-sm space-y-10">
 

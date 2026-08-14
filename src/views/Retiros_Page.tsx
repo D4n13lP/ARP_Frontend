@@ -7,6 +7,7 @@ import { getPaymentHistories } from '../api/paymentHistories';
 import { getTotalCash, createWithdrawal } from '../api/totalCash';
 import { getUsers } from '../api/users';
 import { getErrorMessage } from '../utils/errorMessage';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { AuthUser } from '../types';
 
 export default function Retiros_Page() {
@@ -163,7 +164,7 @@ export default function Retiros_Page() {
             admin ve la versión extendida con el panel de usuarios. */}
         {!isAdmin ? (
           loading ? (
-            <p className="text-gray-500">Cargando saldo de caja...</p>
+            <LoadingSpinner label="Cargando saldo de caja..." />
           ) : (
             <div className="flex flex-col items-center gap-12 w-full max-w-lg">
               <h2 className="text-2xl md:text-3xl text-gray-900 font-medium text-center">
@@ -257,7 +258,7 @@ export default function Retiros_Page() {
             {/* Contenido de saldo/retiro */}
             <div className="w-full flex-1 flex flex-col items-center">
               {loading ? (
-                <p className="text-gray-500">Cargando saldo de caja...</p>
+                <LoadingSpinner label="Cargando saldo de caja..." />
               ) : (
                 <div className="flex flex-col items-center gap-8 w-full max-w-lg mx-auto">
                   <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">

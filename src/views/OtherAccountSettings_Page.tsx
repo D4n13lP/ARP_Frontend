@@ -7,6 +7,7 @@ import { getUserPermissions, updateUserPermission } from '../api/userPermissions
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { AuthUser, Module, UserPermission } from '../types';
 
 // Solo vistas con formularios editables (crean/editan/borran datos), más el
@@ -261,7 +262,7 @@ export default function OtherAccountSettings_Page() {
         )}
 
         {loading ? (
-          <p className="text-gray-500">Cargando...</p>
+          <LoadingSpinner />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-200 hidden md:block">
             <table className="min-w-full text-sm">

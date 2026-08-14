@@ -4,6 +4,7 @@ import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTransactions, getTransactionById } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getClienteNombre, formatMoney } from '../utils/orderDisplay';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { Transaction } from '../types';
 
 export default function SalesReport_Page() {
@@ -165,7 +166,7 @@ export default function SalesReport_Page() {
         </header>
 
         {!selectedSale ? (
-          <p className="text-center text-gray-500">Cargando...</p>
+          <LoadingSpinner />
         ) : (
         <main className="flex-1 w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-10 mt-6">
           {/* Columna Izquierda: Información */}

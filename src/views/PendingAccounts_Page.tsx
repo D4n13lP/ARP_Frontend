@@ -6,6 +6,7 @@ import { getPendingUsers, allowUser, deleteUser } from '../api/users';
 import { getErrorMessage } from '../utils/errorMessage';
 import { useAppStore } from '../stores/useAppStore';
 import { ROUTES } from '../routes';
+import LoadingSpinner from '../components/LoadingSpinner';
 import type { AuthUser } from '../types';
 
 export default function PendingAccounts_Page() {
@@ -84,7 +85,7 @@ export default function PendingAccounts_Page() {
 
       <main className="w-full max-w-4xl flex flex-col mt-4">
         {loading ? (
-          <p className="text-gray-500">Cargando...</p>
+          <LoadingSpinner />
         ) : pending.length === 0 ? (
           <p className="text-gray-500">No hay cuentas pendientes de aprobación.</p>
         ) : (
