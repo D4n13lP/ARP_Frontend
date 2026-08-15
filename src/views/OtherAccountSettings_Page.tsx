@@ -23,6 +23,7 @@ const EDITABLE_FORM_MODULE_KEYS = [
   'register-products',
   'clients',
   'clients-discount',
+  'client-product-discounts',
   'deliverymen',
   'discount-adjustment',
   'destination-account',

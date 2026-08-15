@@ -64,6 +64,7 @@ export default function RegisterOrder_Page() {
         })
         .map((inv) => ({
           id: inv.inventoryID,
+          prodCode: inv.prodCode,
           nombre: inv.product?.productName || '',
           categoria: inv.product?.category?.categoryName || '',
           almacen: inv.warehouse?.whname || '',
@@ -109,6 +110,7 @@ export default function RegisterOrder_Page() {
   const handleAddSelectedProducts = (selectedProducts: { product: ProductData; amount: number }[]) => {
     const newCartItems: CartItem[] = selectedProducts.map(item => ({
       id: item.product.id,
+      prodCode: item.product.prodCode,
       nombre: item.product.nombre,
       precio: item.product.precio,
       cantidad: item.amount,
@@ -185,6 +187,7 @@ export default function RegisterOrder_Page() {
       // encontrados, con un solo botón "Agregar" para todo.
       const newRow: ProductData = {
         id: inventory.inventoryID,
+        prodCode: inventory.prodCode,
         nombre: inventory.product?.productName || especialForm.productName.trim(),
         categoria: inventory.product?.category?.categoryName || '',
         almacen: inventory.warehouse?.whname || '',
@@ -218,7 +221,9 @@ export default function RegisterOrder_Page() {
         items: orderSummaryData.cartItems.map((item) => ({
           inventoryID: item.id,
           quantity: item.cantidad,
-          discountPercent: orderSummaryData.itemsDiscountPercent ?? item.promocion,
+          // item.promocion ya viene resuelto desde SaleSummary (rows) — ver
+          // comentario equivalente en RegisterSale_Page.tsx.
+          discountPercent: item.promocion,
         })),
         depositAmount: payment.depositAmount,
         paymentMethod: payment.paymentMethod ? (payment.paymentMethod as 'cash' | 'digital') : undefined,

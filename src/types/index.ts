@@ -90,9 +90,21 @@ export const ClientSchema = z.object({
   address: z.string().nullable().optional(),
   RFC: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
-  discountPercentage: z.coerce.number().optional(),
 });
 export type Client = z.infer<typeof ClientSchema>;
+
+// Descuento de un cliente puntual sobre UN producto puntual (ClientsDiscountPage)
+// — a diferencia de Client.discountPercentage (un % global que nunca se
+// aplicaba en ninguna venta/pedido real), este sí lo consulta el backend en
+// processTransaction al calcular cada renglón.
+export const ClientProductDiscountSchema = z.object({
+  clientProductDiscountID: z.string(),
+  clientCode: z.string(),
+  prodCode: z.string(),
+  product: ProductSchema.nullable().optional(),
+  discountPercentage: z.coerce.number(),
+});
+export type ClientProductDiscount = z.infer<typeof ClientProductDiscountSchema>;
 
 export const CourierSchema = z.object({
   courierID: z.string(),

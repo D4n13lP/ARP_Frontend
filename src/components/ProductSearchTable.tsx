@@ -2,6 +2,7 @@ import { ShoppingCart } from 'lucide-react';
 
 export interface ProductData {
   id: string; // inventoryID: cada fila es un registro de "inventory" (producto + almacén)
+  prodCode: string; // el producto en sí (varias filas pueden compartirlo, una por almacén)
   nombre: string;
   categoria: string;
   almacen: string;

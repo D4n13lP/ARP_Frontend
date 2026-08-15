@@ -252,6 +252,19 @@ type ModalRow = {
   display?: string;
 };
 
+// Lee un campo de "formData" (un Product) por su nombre en tiempo de
+// ejecución — row.k no es un keyof Product fijo: puede ser un campo real
+// ("cost", "salePrice"...) o un id sintético de renglón ("supplier-0",
+// "supplier-add") que no existe en Product. Record<string, unknown> en vez
+// de `any` para no perder la verificación de tipos del resto del archivo;
+// siempre regresa string o number (nunca undefined), listo para usarse tal
+// cual en un <input value=...> o en un cálculo.
+function getEditableFieldValue(product: Record<string, unknown>, key: string): string | number {
+  const value = product[key];
+  if (typeof value === 'number') return value;
+  return typeof value === 'string' ? value : '';
+}
+
 export default function ProductModal() {
   // --- STORE ---
   const isModalOpen = useAppStore((state) => state.isModalOpen);
@@ -421,8 +434,8 @@ export default function ProductModal() {
         if (oldPicture) {
           await deletePicture(oldPicture.pictureID).catch(() => {});
         }
-      } catch (error: any) {
-        alert(error?.response?.data?.message || "No se pudo subir la imagen.");
+      } catch (error) {
+        alert(getErrorMessage(error, "No se pudo subir la imagen."));
       }
     }
   };
@@ -513,8 +526,8 @@ export default function ProductModal() {
       setFormData(merged);
       setProducts(products.map((p) => (p.prodCode === merged.prodCode ? merged : p)));
       setIsEditing(false);
-    } catch (error: any) {
-      alert(error?.response?.data?.message || "No se pudo guardar el producto.");
+    } catch (error) {
+      alert(getErrorMessage(error, "No se pudo guardar el producto."));
     }
   };
 
@@ -525,8 +538,8 @@ export default function ProductModal() {
       await deleteProduct(formData.prodCode);
       setProducts(products.filter((p) => p.prodCode !== formData.prodCode));
       closeModal();
-    } catch (error: any) {
-      setDeleteError(error?.response?.data?.message || "No se pudo eliminar el producto.");
+    } catch (error) {
+      setDeleteError(getErrorMessage(error, "No se pudo eliminar el producto."));
     }
   };
 
@@ -557,8 +570,8 @@ export default function ProductModal() {
         }
         setLabelMenuOpen(true);
       });
-    } catch (error: any) {
-      alert(error?.response?.data?.message || "No se pudo generar la etiqueta.");
+    } catch (error) {
+      alert(getErrorMessage(error, "No se pudo generar la etiqueta."));
     } finally {
       setPrintingLabel(false);
     }
@@ -723,7 +736,9 @@ export default function ProductModal() {
     { k: "sku", l: "SKU:", ed: true, money: false },
     { k: "category", l: "Categoría:", ed: true, money: false, select: true, display: formData.category?.categoryName || "Sin categoría" },
     { k: "unit", l: "Unidad:", ed: true, money: false, unitSelect: true, display: formData.unit?.produnitName || "Sin unidad" },
-    { k: "cost", l: "Costo:", ed: true, money: true },
+    // Solo el admin ve (y puede editar) el costo del producto — un vendedor
+    // no debe conocer el margen real, solo el precio de venta.
+    ...(authUser?.userType === 'admin' ? [{ k: "cost", l: "Costo:", ed: true, money: true }] : []),
     { k: "salePrice", l: "Precio de venta:", ed: true, money: true },
     { k: "lowStock", l: "Stock bajo:", ed: true, money: false },
     ...supplierRows,
@@ -807,16 +822,16 @@ export default function ProductModal() {
                       const fileInput = document.createElement("input");
                       fileInput.type = "file";
                       fileInput.accept = "image/*";
-                      fileInput.onchange = async (e: any) => {
-                        const file = e.target.files?.[0];
+                      fileInput.onchange = async (e: Event) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
                         if (file && file.type.startsWith("image/")) {
                           try {
                             const uploaded = await uploadPicture(formData.prodCode, file);
                             const nuevas = [...localPictures, uploaded];
                             setLocalPictures(nuevas);
                             setCurrentImgIndex(nuevas.length - 1);
-                          } catch (error: any) {
-                            alert(error?.response?.data?.message || "No se pudo subir la imagen.");
+                          } catch (error) {
+                            alert(getErrorMessage(error, "No se pudo subir la imagen."));
                           }
                         }
                       };
@@ -929,7 +944,7 @@ export default function ProductModal() {
                               <input
                                 type={row.money || row.k === "lowStock" ? "number" : "text"}
                                 className="w-full border-b-2 border-emerald-400 outline-none px-1 bg-transparent font-bold text-gray-800"
-                                value={(formData as any)[row.k] ?? ''}
+                                value={getEditableFieldValue(formData, row.k)}
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
@@ -944,8 +959,8 @@ export default function ProductModal() {
                                 className={`font-bold ${row.money ? "text-emerald-700 text-lg" : "text-gray-800"}`}
                               >
                                 {row.money
-                                  ? `$${Number((formData as any)[row.k]).toLocaleString("es-MX")} ${formData.currencyCost || 'MXN'}`
-                                  : (row.display ?? (formData as any)[row.k])}
+                                  ? `$${Number(getEditableFieldValue(formData, row.k)).toLocaleString("es-MX")} ${formData.currencyCost || 'MXN'}`
+                                  : (row.display ?? getEditableFieldValue(formData, row.k))}
                               </span>
                             )}
                           </td>

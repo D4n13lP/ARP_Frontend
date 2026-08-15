@@ -16,6 +16,7 @@ const DashboardPage = lazy(() => import('./views/DashboardPage'))
 const Deliverymen_Page = lazy(() => import('./views/Deliverymen_Page'))
 const Discounts_Page = lazy(() => import('./views/Discounts_Page'))
 const ClientHistory_Page = lazy(() => import('./views/ClientHistory_Page'))
+const ClientDiscountDetail_Page = lazy(() => import('./views/ClientDiscountDetail_Page'))
 const PromotionSetupPage = lazy(() => import('./views/PromotionSetupPage'))
 const ClientsDiscountPage = lazy(() => import('./views/ClientsDiscountPage'))
 const DiscountAdjustmentPage = lazy(() => import('./views/DiscountAdjustmentPage'))
@@ -77,6 +78,7 @@ export default function AppRouter() {
               <Route path={ROUTES.PRODUCTS.ADD_PRODUCTS} element={<ModuleGuard moduleKey="add-products"><AddProducts_Page /></ModuleGuard>} />
               <Route path={ROUTES.CLIENTS} element={<ModuleGuard moduleKey="clients"><Clients_Page /></ModuleGuard>} />
               <Route path="/clients/history/:id" element={<ModuleGuard moduleKey="client-history"><ClientHistory_Page /></ModuleGuard>} />
+              <Route path="/clients/discounts/:clientCode" element={<ModuleGuard moduleKey="client-product-discounts"><ClientDiscountDetail_Page /></ModuleGuard>} />
               <Route path={ROUTES.DELIVERYMEN} element={<ModuleGuard moduleKey="deliverymen"><Deliverymen_Page /></ModuleGuard>} />
               <Route path={ROUTES.DISCOUNTS.ROOT} element={<ModuleGuard moduleKey="discounts"><Discounts_Page /></ModuleGuard>} />
               <Route path={ROUTES.DISCOUNTS.PROMOTION} element={<ModuleGuard moduleKey="promotion-setup"><PromotionSetupPage /></ModuleGuard>} />

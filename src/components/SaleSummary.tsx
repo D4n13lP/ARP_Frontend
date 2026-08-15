@@ -4,11 +4,13 @@ import { getClients } from '../api/clients';
 import { getTransDiscounts } from '../api/transDiscounts';
 import { getDestAccounts } from '../api/destAccounts';
 import { getCouriers } from '../api/couriers';
+import { getClientProductDiscounts } from '../api/clientProductDiscounts';
 import { getErrorMessage } from '../utils/errorMessage';
-import type { Client, Courier, DestAccount, TransDiscount } from '../types';
+import type { Client, ClientProductDiscount, Courier, DestAccount, TransDiscount } from '../types';
 
 export interface CartItem {
   id: string; // inventoryID (ver ProductSearchTable) — de ahí sale de qué almacén se descuenta
+  prodCode: string; // para cruzar contra el descuento cliente+producto (ClientsDiscountPage)
   nombre: string;
   cantidad: number;
   precio: number;
@@ -118,6 +120,11 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
   // Confirmación "¿Desea registrar al cliente?" — aparece al continuar si
   // "Cliente no registrado" está marcado y sí se escribió un nombre.
   const [showClienteConfirm, setShowClienteConfirm] = useState(false);
+  // Descuentos cliente+producto del cliente elegido (ClientsDiscountPage) —
+  // se aplican solo por si acaso aquí en pantalla, para que el total que ve
+  // el cajero antes de confirmar ya coincida con lo que processTransaction
+  // va a cobrar de verdad en el servidor (que es quien realmente lo exige).
+  const [clientProductDiscounts, setClientProductDiscounts] = useState<ClientProductDiscount[]>([]);
 
   // ---------- ESTADOS PASO 2 ----------
   const [formaPago, setFormaPago] = useState(''); // 'cash' | 'digital'
@@ -161,6 +168,18 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
     }
   }, [selectedClient]);
 
+  // Descuentos cliente+producto del cliente elegido — se piden de nuevo cada
+  // vez que cambia (o se limpian si se quita la selección).
+  useEffect(() => {
+    if (!selectedClient) {
+      setClientProductDiscounts([]);
+      return;
+    }
+    getClientProductDiscounts(selectedClient.clientCode)
+      .then(setClientProductDiscounts)
+      .catch(() => setClientProductDiscounts([]));
+  }, [selectedClient]);
+
   const formasPagoOptions = [
     { label: 'Efectivo', value: 'cash' },
     { label: 'Transferencia / tarjeta', value: 'digital' },
@@ -202,13 +221,20 @@ export default function SaleSummary({ cartItems, onNext, submitting = false, var
 
   const rows = useMemo(() => {
     return cartItems.map(item => {
-      const efectivoPromocion = itemsDiscountPercent ?? item.promocion;
+      // El descuento cliente+producto (ClientsDiscountPage) gana sobre
+      // cualquier otro — mismo orden de prioridad que aplica
+      // processTransaction en el servidor (ver transaction.controller.ts),
+      // así el total que se ve aquí ya coincide con lo que se va a cobrar.
+      const clientOverride = clientProductDiscounts.find((d) => d.prodCode === item.prodCode);
+      const efectivoPromocion = clientOverride
+        ? Number(clientOverride.discountPercentage) * 100
+        : (itemsDiscountPercent ?? item.promocion);
       const suma = item.precio * item.cantidad;
       const montoDescuento = suma * (efectivoPromocion / 100);
       const sumaFinal = suma - montoDescuento;
-      return { ...item, suma, sumaFinal };
+      return { ...item, promocion: efectivoPromocion, suma, sumaFinal };
     });
-  }, [cartItems, itemsDiscountPercent]);
+  }, [cartItems, itemsDiscountPercent, clientProductDiscounts]);
 
   const totalFinal = useMemo(() => {
     return rows.reduce((acc, current) => acc + current.sumaFinal, 0);

@@ -49,6 +49,7 @@ export default function RegisterSale_Page() {
         })
         .map((inv) => ({
           id: inv.inventoryID,
+          prodCode: inv.prodCode,
           nombre: inv.product?.productName || '',
           categoria: inv.product?.category?.categoryName || '',
           almacen: inv.warehouse?.whname || '',
@@ -95,6 +96,7 @@ export default function RegisterSale_Page() {
     // Transformar los productos seleccionados a formato de carrito
     const newCartItems: CartItem[] = selectedProducts.map(item => ({
       id: item.product.id,
+      prodCode: item.product.prodCode,
       nombre: item.product.nombre,
       precio: item.product.precio,
       cantidad: item.amount,
@@ -118,7 +120,10 @@ export default function RegisterSale_Page() {
         items: summaryData.cartItems.map((item) => ({
           inventoryID: item.id,
           quantity: item.cantidad,
-          discountPercent: summaryData.itemsDiscountPercent ?? item.promocion,
+          // item.promocion ya viene resuelto desde SaleSummary (rows): ahí ya
+          // se decidió entre descuento cliente+producto, tipo 1/2 manual, o el
+          // de la promoción del producto — no hay que volver a resolverlo aquí.
+          discountPercent: item.promocion,
         })),
         paymentMethod: summaryData.pago.paymentMethod as 'cash' | 'digital',
         destAccountClabe: summaryData.pago.destAccountClabe,

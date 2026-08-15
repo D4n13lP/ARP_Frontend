@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { TicketPercent, Search, ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { TicketPercent, Search, ArrowLeft, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import logoEmpresa from '../assets/logo_empresa.jpg';
-import { getClients, updateClient } from '../api/clients';
+import { getClients } from '../api/clients';
 import { getProducts } from '../api/products';
+import { getClientProductDiscounts, saveClientProductDiscount, deleteClientProductDiscount } from '../api/clientProductDiscounts';
 import { getErrorMessage } from '../utils/errorMessage';
-import type { Client, Product } from '../types';
+import LoadingSpinner from '../components/LoadingSpinner';
+import type { Client, ClientProductDiscount, Product } from '../types';
 
 export default function ClientDiscountSetup_Page() {
   const navigate = useNavigate();
@@ -19,16 +21,19 @@ export default function ClientDiscountSetup_Page() {
   const [clientModal, setClientModal] = useState<{ results: Client[]; pickedCode: string | null } | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
-  const [porcentaje, setPorcentaje] = useState<number | string>('');
-  const [saving, setSaving] = useState(false);
+  // --- DESCUENTOS YA ASIGNADOS AL CLIENTE SELECCIONADO (producto por producto) ---
+  const [clientDiscounts, setClientDiscounts] = useState<ClientProductDiscount[]>([]);
+  const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+  const [deletingID, setDeletingID] = useState<string | null>(null);
 
-  // --- VISTA PREVIA CON PRODUCTOS REALES (no se guarda nada por producto: el
-  // descuento del cliente es un único porcentaje aplicado a toda su compra;
-  // esta tabla solo ayuda a ver cómo quedaría el precio de un producto real) ---
+  // --- BÚSQUEDA DE PRODUCTO PARA ASIGNARLE UN DESCUENTO A ESE CLIENTE ---
   const [productos, setProductos] = useState<Product[]>([]);
   const [productoBusqueda, setProductoBusqueda] = useState('');
   const [buscandoProducto, setBuscandoProducto] = useState(false);
   const [resultadosProducto, setResultadosProducto] = useState<Product[]>([]);
+  // Porcentaje que se está escribiendo por producto (prodCode -> texto del input).
+  const [percentInputs, setPercentInputs] = useState<Record<string, string>>({});
+  const [savingProdCode, setSavingProdCode] = useState<string | null>(null);
 
   const handleSearchCliente = async () => {
     if (!idCliente.trim() && !clienteNombre.trim()) return;
@@ -53,8 +58,22 @@ export default function ClientDiscountSetup_Page() {
     setSelectedClient(client);
     setIdCliente(client.clientCode);
     setClienteNombre(client.clientName);
-    setPorcentaje(client.discountPercentage ? Math.round(Number(client.discountPercentage) * 100) : '');
+    setPercentInputs({});
   };
+
+  // Al elegir cliente, trae sus descuentos por producto ya guardados —
+  // así se ve de una vez qué productos ya tienen algo asignado.
+  useEffect(() => {
+    if (!selectedClient) {
+      setClientDiscounts([]);
+      return;
+    }
+    setLoadingDiscounts(true);
+    getClientProductDiscounts(selectedClient.clientCode)
+      .then(setClientDiscounts)
+      .catch((error) => alert(getErrorMessage(error, 'No se pudieron cargar los descuentos del cliente.')))
+      .finally(() => setLoadingDiscounts(false));
+  }, [selectedClient]);
 
   const handleSearchProducto = async () => {
     const busqueda = productoBusqueda.trim().toLowerCase();
@@ -73,39 +92,65 @@ export default function ClientDiscountSetup_Page() {
     }
   };
 
-  // --- LÓGICA DE CÁLCULO DINÁMICO ---
-  const calcularPrecioConDescuento = (precioOriginal: number) => {
-    const p = typeof porcentaje === 'number' ? porcentaje : 0;
-    if (p <= 0) return precioOriginal.toFixed(2);
-    const descuento = precioOriginal * (p / 100);
-    return (precioOriginal - descuento).toFixed(2);
+  const getDiscountForProduct = (prodCode: string) => clientDiscounts.find((d) => d.prodCode === prodCode);
+
+  // Si ya se está editando el input, respeta lo escrito; si no, precarga el
+  // % ya guardado para ese producto (o vacío si nunca se le asignó nada).
+  const getPercentInputValue = (prodCode: string): string => {
+    if (percentInputs[prodCode] !== undefined) return percentInputs[prodCode];
+    const existing = getDiscountForProduct(prodCode);
+    return existing ? String(Math.round(Number(existing.discountPercentage) * 100)) : '';
   };
 
-  const handlePorcentajeChange = (val: string) => {
-    if (val === '') { setPorcentaje(''); return; }
-    const num = parseInt(val);
-    if (!isNaN(num) && num >= 1 && num <= 100) setPorcentaje(num);
+  const handlePercentInputChange = (prodCode: string, val: string) => {
+    if (val === '') {
+      setPercentInputs((prev) => ({ ...prev, [prodCode]: '' }));
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num >= 1 && num <= 100 && /^\d+$/.test(val)) {
+      setPercentInputs((prev) => ({ ...prev, [prodCode]: String(num) }));
+    }
   };
 
-  const handleGuardar = async () => {
-    if (!selectedClient) {
-      alert('Busca y selecciona un cliente.');
+  const handleSaveProductDiscount = async (prodCode: string) => {
+    if (!selectedClient) return;
+    const val = getPercentInputValue(prodCode);
+    const num = Number(val);
+    if (!val || isNaN(num) || num < 1 || num > 100) {
+      alert('Ingresa un porcentaje válido (1-100).');
       return;
     }
-    if (porcentaje === '') {
-      alert('Ingresa el porcentaje de descuento.');
-      return;
-    }
-    setSaving(true);
+    setSavingProdCode(prodCode);
     try {
-      const updated = await updateClient(selectedClient.clientCode, { discountPercentage: Number(porcentaje) / 100 });
-      setSelectedClient(updated);
-      setClientes((prev) => prev.map((c) => (c.clientCode === updated.clientCode ? updated : c)));
-      alert('Descuento del cliente actualizado correctamente.');
+      const saved = await saveClientProductDiscount({
+        clientCode: selectedClient.clientCode,
+        prodCode,
+        discountPercentage: num / 100,
+      });
+      setClientDiscounts((prev) => [...prev.filter((d) => d.prodCode !== prodCode), saved]);
+      setPercentInputs((prev) => {
+        const next = { ...prev };
+        delete next[prodCode];
+        return next;
+      });
     } catch (error) {
-      alert(getErrorMessage(error, 'No se pudo guardar el descuento del cliente.'));
+      alert(getErrorMessage(error, 'No se pudo guardar el descuento.'));
     } finally {
-      setSaving(false);
+      setSavingProdCode(null);
+    }
+  };
+
+  const handleDeleteProductDiscount = async (discount: ClientProductDiscount) => {
+    if (!window.confirm(`¿Quitar el descuento de "${discount.product?.productName || 'este producto'}"?`)) return;
+    setDeletingID(discount.clientProductDiscountID);
+    try {
+      await deleteClientProductDiscount(discount.clientProductDiscountID);
+      setClientDiscounts((prev) => prev.filter((d) => d.clientProductDiscountID !== discount.clientProductDiscountID));
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo quitar el descuento.'));
+    } finally {
+      setDeletingID(null);
     }
   };
 
@@ -178,16 +223,44 @@ export default function ClientDiscountSetup_Page() {
           <div className="mb-10 min-h-6 text-sm">
             {buscandoCliente && <span className="text-gray-500">Buscando...</span>}
             {selectedClient && !buscandoCliente && (
-              <span className="font-bold text-gray-900">
-                Cliente seleccionado: {selectedClient.clientName}
-                {selectedClient.discountPercentage ? ` (descuento actual: ${Math.round(Number(selectedClient.discountPercentage) * 100)}%)` : ' (sin descuento asignado)'}
-              </span>
+              <span className="font-bold text-gray-900">Cliente seleccionado: {selectedClient.clientName}</span>
             )}
           </div>
 
-          {/* VISTA PREVIA CON PRODUCTO REAL */}
+          {selectedClient && (
+            <>
+              {/* DESCUENTOS YA ASIGNADOS A ESTE CLIENTE */}
+              <h2 className="text-lg font-bold text-gray-800 mb-3">Descuentos ya asignados</h2>
+              {loadingDiscounts ? (
+                <LoadingSpinner />
+              ) : clientDiscounts.length === 0 ? (
+                <p className="text-sm text-gray-400 italic mb-8">Este cliente todavía no tiene descuentos asignados a ningún producto.</p>
+              ) : (
+                <div className="flex flex-col gap-2 mb-8">
+                  {clientDiscounts.map((d) => (
+                    <div key={d.clientProductDiscountID} className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5 text-sm">
+                      <span className="font-medium text-gray-800 truncate">{d.product?.productName || d.prodCode}</span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-bold text-[#3ab0e2]">{Math.round(Number(d.discountPercentage) * 100)}%</span>
+                        <button
+                          onClick={() => handleDeleteProductDiscount(d)}
+                          disabled={deletingID === d.clientProductDiscountID}
+                          title="Quitar este descuento"
+                          className="text-red-500 hover:text-red-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* BUSCAR PRODUCTO PARA ASIGNARLE UN DESCUENTO */}
           <p className="text-sm text-gray-500 italic mb-4">
-            El descuento se aplica de forma global a todas las compras del cliente. Busca un producto solo para previsualizar el precio con el porcentaje capturado abajo.
+            Busca un producto y asígnale un porcentaje — el descuento aplica solo cuando este cliente compre justo ese producto.
           </p>
           <div className="mb-10 max-w-md flex">
             <input
@@ -207,7 +280,7 @@ export default function ClientDiscountSetup_Page() {
             </button>
           </div>
 
-          {/* TABLA CON CÁLCULO DINÁMICO — escritorio/tablet (>= md), intacta */}
+          {/* TABLA DE RESULTADOS — escritorio/tablet (>= md) */}
           <div className="overflow-x-auto border border-gray-200 rounded-lg mb-8 hidden md:block">
             <table className="w-full text-left">
               <thead className="bg-gray-100 text-gray-600 text-xs font-bold uppercase">
@@ -215,7 +288,7 @@ export default function ClientDiscountSetup_Page() {
                   <th className="p-4 border-b">Producto</th>
                   <th className="p-4 border-b">Categoría</th>
                   <th className="p-4 border-b">Precio</th>
-                  <th className="p-4 border-b bg-blue-50 text-[#3ab0e2]">Precio con descuento</th>
+                  <th className="p-4 border-b bg-blue-50 text-[#3ab0e2]">Descuento para este cliente</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
@@ -229,15 +302,35 @@ export default function ClientDiscountSetup_Page() {
                       <td className="p-4 font-medium">{p.productName}</td>
                       <td className="p-4">{p.category?.categoryName || '—'}</td>
                       <td className="p-4">${Number(p.salePrice).toFixed(2)}</td>
-                      <td className="p-4 font-bold text-[#3ab0e2] bg-blue-50/30">
-                        ${calcularPrecioConDescuento(Number(p.salePrice))}
+                      <td className="p-4 bg-blue-50/30">
+                        <div className="flex items-center gap-2">
+                          <div className="relative w-24">
+                            <input
+                              type="text"
+                              disabled={!selectedClient}
+                              placeholder="1-100"
+                              value={getPercentInputValue(p.prodCode)}
+                              onChange={(e) => handlePercentInputChange(p.prodCode, e.target.value)}
+                              className="w-full p-2 pr-6 border-2 border-[#3ab0e2]/40 rounded text-center font-bold outline-none focus:border-[#3ab0e2] disabled:opacity-50"
+                            />
+                            <span className="absolute right-2 top-2 font-bold text-[#3ab0e2] text-sm">%</span>
+                          </div>
+                          <button
+                            onClick={() => handleSaveProductDiscount(p.prodCode)}
+                            disabled={!selectedClient || savingProdCode === p.prodCode}
+                            title={selectedClient ? undefined : 'Primero busca y selecciona un cliente'}
+                            className="bg-[#3ab0e2] hover:bg-[#16A085] text-white px-3 py-2 rounded text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {savingProdCode === p.prodCode ? '...' : 'Guardar'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-gray-400 italic">
-                      Busca un producto para ver el cálculo.
+                      Busca un producto para asignarle un descuento.
                     </td>
                   </tr>
                 )}
@@ -256,38 +349,32 @@ export default function ClientDiscountSetup_Page() {
                   <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                     <div><span className="text-gray-500 block mb-0.5">Categoría</span><span className="font-semibold text-gray-800">{p.category?.categoryName || '—'}</span></div>
                     <div><span className="text-gray-500 block mb-0.5">Precio</span><span className="font-semibold text-gray-800">${Number(p.salePrice).toFixed(2)}</span></div>
-                    <div className="col-span-2"><span className="text-gray-500 block mb-0.5">Precio con descuento</span><span className="font-bold text-[#3ab0e2]">${calcularPrecioConDescuento(Number(p.salePrice))}</span></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        disabled={!selectedClient}
+                        placeholder="1-100"
+                        value={getPercentInputValue(p.prodCode)}
+                        onChange={(e) => handlePercentInputChange(p.prodCode, e.target.value)}
+                        className="w-full p-2 pr-6 border-2 border-[#3ab0e2]/40 rounded text-center font-bold outline-none focus:border-[#3ab0e2] disabled:opacity-50"
+                      />
+                      <span className="absolute right-2 top-2 font-bold text-[#3ab0e2] text-sm">%</span>
+                    </div>
+                    <button
+                      onClick={() => handleSaveProductDiscount(p.prodCode)}
+                      disabled={!selectedClient || savingProdCode === p.prodCode}
+                      className="bg-[#3ab0e2] hover:bg-[#16A085] text-white px-4 py-2 rounded text-xs font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {savingProdCode === p.prodCode ? '...' : 'Guardar'}
+                    </button>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-center text-gray-400 italic py-8">Busca un producto para ver el cálculo.</p>
+              <p className="text-center text-gray-400 italic py-8">Busca un producto para asignarle un descuento.</p>
             )}
-          </div>
-
-          {/* FOOTER: PORCENTAJE Y BOTÓN */}
-          <div className="flex flex-col md:flex-row items-center gap-6 justify-end border-t border-gray-100 pt-8">
-            <div className="flex items-center gap-4">
-              <label className="font-bold text-gray-700">Porcentaje de descuento:</label>
-              <div className="relative w-32">
-                <input
-                  type="text"
-                  placeholder="1 - 100"
-                  className="w-full p-2 pr-8 border-2 border-[#3ab0e2] rounded text-center font-bold outline-none"
-                  value={porcentaje}
-                  onChange={(e) => handlePorcentajeChange(e.target.value)}
-                />
-                <span className="absolute right-3 top-2.5 font-bold text-[#3ab0e2]">%</span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleGuardar}
-              disabled={!selectedClient || saving}
-              className={`px-12 py-3 rounded shadow-lg transition-all font-bold text-white ${!selectedClient || saving ? 'bg-gray-300 cursor-not-allowed' : 'bg-[#3ab0e2] hover:bg-[#16A085] cursor-pointer'}`}
-            >
-              {saving ? 'Guardando...' : 'Guardar'}
-            </button>
           </div>
         </div>
       </main>

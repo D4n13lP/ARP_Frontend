@@ -399,19 +399,29 @@ export default function ClientsPage() {
                       <ReceiptText size={16} /> Consultar
                     </button>
                   </td>
-                  <td className="p-4 flex justify-center gap-6">
-                    <button
-                      onClick={() => startEdit(cliente)}
-                      className="text-amber-500 hover:text-amber-700 cursor-pointer font-bold transition-colors"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(cliente.clientCode)}
-                      className="text-red-500 hover:text-red-700 cursor-pointer font-bold transition-colors"
-                    >
-                      Eliminar
-                    </button>
+                  <td className="p-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex justify-center gap-6">
+                        <button
+                          onClick={() => startEdit(cliente)}
+                          className="text-amber-500 hover:text-amber-700 cursor-pointer font-bold transition-colors"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(cliente.clientCode)}
+                          className="text-red-500 hover:text-red-700 cursor-pointer font-bold transition-colors"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/clients/discounts/${cliente.clientCode}`)}
+                        className="text-[#3ab0e2] hover:text-[#16A085] cursor-pointer font-bold text-xs underline underline-offset-2 transition-colors"
+                      >
+                        Ver descuentos
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -463,6 +473,12 @@ export default function ClientsPage() {
                   Eliminar
                 </button>
               </div>
+              <button
+                onClick={() => navigate(`/clients/discounts/${cliente.clientCode}`)}
+                className="w-full py-2 bg-sky-50 text-[#3ab0e2] font-bold text-xs rounded-lg active:bg-sky-100 cursor-pointer"
+              >
+                Ver descuentos
+              </button>
             </div>
           ))}
         </div>
