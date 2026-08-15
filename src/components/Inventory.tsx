@@ -333,6 +333,7 @@ export default function Inventory() {
       case 'disponibleAntes': return adj.availableBefore ?? 0;
       case 'pendienteAntes': return adj.outstandingDeliveryBefore ?? 0;
       case 'cantidadAjustada': return adj.quantityTransferred ?? 0;
+      case 'almacenAjuste': return (adj.warehouse?.whname || '').toLowerCase();
       case 'fechaAjuste': return adj.adjustmentDate ? new Date(adj.adjustmentDate).getTime() : 0;
       case 'almacenOrigen': return (adj.sourceWarehouse?.whname || '').toLowerCase();
       case 'almacenDestino': return (adj.destinationWarehouse?.whname || '').toLowerCase();
@@ -398,6 +399,7 @@ export default function Inventory() {
         { label: 'Disponible antes', key: 'disponibleAntes' },
         { label: 'Pendiente antes', key: 'pendienteAntes' },
         { label: 'Cantidad ajustada', key: 'cantidadAjustada' },
+        { label: 'Almacén', key: 'almacenAjuste' },
         { label: 'Fecha de ajuste', key: 'fechaAjuste' },
       ];
     } else if (tabActiva === 'transferencias') {
@@ -690,11 +692,17 @@ export default function Inventory() {
                       key={col.key}
                       onClick={() => handleSort(col.key)}
                       title={col.key === 'opciones' ? undefined : 'Ordenar'}
-                      className={`sticky top-0 z-10 bg-[#f2f2f2] px-4 py-2.5 text-sm font-bold border-r border-b border-gray-300 last:border-r-0 ${
+                      className={`sticky top-0 z-10 bg-[#f2f2f2] py-2.5 text-sm font-bold border-r border-b border-gray-300 last:border-r-0 ${
                         col.key === 'opciones' ? '' : 'cursor-pointer select-none hover:bg-gray-200/70'
+                      } ${
+                        ['disponibleAntes', 'pendienteAntes', 'cantidadAjustada'].includes(col.key) ? 'px-2 w-28' : 'px-4'
                       }`}
                     >
-                      <div className="flex justify-between items-center">
+                      <div className={`flex items-center ${
+                        ['disponibleAntes', 'pendienteAntes', 'cantidadAjustada'].includes(col.key)
+                          ? 'justify-center gap-1'
+                          : 'justify-between'
+                      }`}>
                         {col.label}
                         {col.key !== 'opciones' && (
                           <div className="flex flex-col scale-75">
@@ -812,11 +820,12 @@ export default function Inventory() {
                       <tr key={adj.adjustID} className="hover:bg-gray-50 transition-colors h-11">
                         <td className="px-4 border-r border-gray-200">{adj.product?.productName}</td>
                         <td className="px-4 border-r border-gray-200">{adj.product?.category?.categoryName}</td>
-                        <td className="px-4 border-r border-gray-200 text-center">{adj.availableBefore}</td>
-                        <td className="px-4 border-r border-gray-200 text-center">{adj.outstandingDeliveryBefore}</td>
-                        <td className="px-4 border-r border-gray-200 text-center">
+                        <td className="px-2 border-r border-gray-200 text-center">{adj.availableBefore}</td>
+                        <td className="px-2 border-r border-gray-200 text-center">{adj.outstandingDeliveryBefore}</td>
+                        <td className="px-2 border-r border-gray-200 text-center">
                           {adj.quantityTransferred != null && adj.quantityTransferred > 0 ? `+${adj.quantityTransferred}` : adj.quantityTransferred}
                         </td>
+                        <td className="px-4 border-r border-gray-200">{adj.warehouse?.whname || '-'}</td>
                         <td className="px-4 border-r border-gray-200">{formatDateTimeMX(adj.adjustmentDate)}</td>
                       </tr>
                     ))
@@ -1004,6 +1013,10 @@ export default function Inventory() {
                       <span className="font-semibold text-gray-800">
                         {adj.quantityTransferred != null && adj.quantityTransferred > 0 ? `+${adj.quantityTransferred}` : adj.quantityTransferred}
                       </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block mb-0.5">Almacén</span>
+                      <span className="font-semibold text-gray-800">{adj.warehouse?.whname || '-'}</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block mb-0.5">Fecha de ajuste</span>

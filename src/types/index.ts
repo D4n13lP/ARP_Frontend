@@ -278,6 +278,10 @@ export const InventoryAdjustmentSchema = z.object({
   sourceWarehouse: WarehouseSchema.nullable().optional(),
   destinationWarehousewhID: z.string().nullable().optional(),
   destinationWarehouse: WarehouseSchema.nullable().optional(),
+  // Almacén de un ajuste (type='adjust') — separado de source/destinationWarehouse,
+  // que son exclusivos de type='transfer' (ver inventoryAdjustment.model.ts).
+  whID: z.string().nullable().optional(),
+  warehouse: WarehouseSchema.nullable().optional(),
 });
 export type InventoryAdjustment = z.infer<typeof InventoryAdjustmentSchema>;
 
