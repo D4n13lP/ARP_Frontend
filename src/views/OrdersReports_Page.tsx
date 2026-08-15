@@ -1,20 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Receipt } from 'lucide-react';
+import { Receipt, Search } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTransactions } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
 import { formatDateOnly, formatDeliveryDate, getEstadoEntregaLabel, getVendedorName, getClienteNombre, getLugarEntrega, getImporteACuenta, formatMoney } from '../utils/orderDisplay';
-import type { Transaction } from '../types';
+import { useAppStore } from '../stores/useAppStore';
 
 export default function OrdersReports_Page() {
   const navigate = useNavigate();
 
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [reportGenerated, setReportGenerated] = useState(false);
+  // El reporte ya generado (fechas + resultados) vive en el store, no en
+  // useState local — "Ver detalles" navega a OrderDetail_Page (otra ruta) y
+  // "Atras" hace navigate(-1), lo que desmonta y remonta esta página desde
+  // cero; sin esto, regresar dejaba la tabla en blanco (ver ordersReportSlice.ts).
+  const { ordersReport, setOrdersReport, resetOrdersReport } = useAppStore();
+  const { startDate, endDate, reportGenerated, orders } = ordersReport;
   const [generating, setGenerating] = useState(false);
-  const [orders, setOrders] = useState<Transaction[]>([]);
+  // Búsqueda directa por folio (alternativa a elegir un rango de fechas) —
+  // solo vive local: el input desaparece en cuanto hay un reporte generado
+  // (por fecha o por folio), así que no hace falta persistirlo en el store.
+  const [folioSearch, setFolioSearch] = useState('');
 
   const handleGenerateReport = async () => {
     if (!startDate || !endDate) {
@@ -34,13 +40,42 @@ export default function OrdersReports_Page() {
       // transactionDate es "YYYY-MM-DD": comparar como texto es seguro y
       // evita cualquier lío de zona horaria al construir un Date.
       const enRango = all.filter((o) => o.transactionDate && o.transactionDate >= startDate && o.transactionDate <= endDate);
-      setOrders(enRango);
-      setReportGenerated(true);
+      setOrdersReport({ orders: enRango, reportGenerated: true });
     } catch (error) {
       alert(getErrorMessage(error, 'No se pudo generar el reporte.'));
     } finally {
       setGenerating(false);
     }
+  };
+
+  // Búsqueda directa por folio: genera la misma tabla que "Generar reporte"
+  // pero con solo las filas cuyo folio coincida con lo escrito (no exige
+  // rango de fechas). Coincidencia parcial e insensible a mayúsculas, como
+  // cualquier buscador.
+  const handleSearchByFolio = async () => {
+    const query = folioSearch.trim();
+    if (!query) {
+      alert('Ingresa un folio para buscar.');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const all = await getTransactions({ transType: 'order' });
+      const encontrados = all.filter((o) => o.folio?.toLowerCase().includes(query.toLowerCase()));
+      setOrdersReport({ orders: encontrados, reportGenerated: true });
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo buscar el pedido.'));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Único punto que borra el reporte generado a propósito — regresar de
+  // OrderDetail_Page con "Atras" ya NO lo borra (ver comentario arriba).
+  const handleReset = () => {
+    resetOrdersReport();
+    setFolioSearch('');
   };
 
   const calculateTotal = () => orders.reduce((sum, order) => sum + order.finalAmount, 0);
@@ -89,10 +124,7 @@ export default function OrdersReports_Page() {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setReportGenerated(false); // resetea si se cambia la fecha
-                }}
+                onChange={(e) => setOrdersReport({ startDate: e.target.value, reportGenerated: false })}
                 className="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-[#3ab0e2] text-gray-700 bg-white"
               />
             </div>
@@ -101,10 +133,7 @@ export default function OrdersReports_Page() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setReportGenerated(false); // resetea si se cambia la fecha
-                }}
+                onChange={(e) => setOrdersReport({ endDate: e.target.value, reportGenerated: false })}
                 className="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-[#3ab0e2] text-gray-700 bg-white"
               />
             </div>
@@ -112,17 +141,52 @@ export default function OrdersReports_Page() {
 
           {/* Action & Stats */}
           <div className="flex flex-col gap-4 mt-2">
-            <button
-              onClick={handleGenerateReport}
-              disabled={reportGenerated || generating}
-              className={`px-8 py-2 rounded text-sm w-fit transition-colors shadow-sm font-medium ${
-                reportGenerated
-                  ? 'bg-[#a3aac0] text-white cursor-default shadow-none'
-                  : 'bg-[#3ab0e2] hover:bg-sky-400 text-white cursor-pointer disabled:opacity-60'
-              }`}
-            >
-              {generating ? 'Generando...' : 'Generar reporte'}
-            </button>
+            <div className="flex flex-row gap-3">
+              <button
+                onClick={handleGenerateReport}
+                disabled={reportGenerated || generating}
+                className={`px-8 py-2 rounded text-sm w-48 transition-colors shadow-sm font-medium ${
+                  reportGenerated
+                    ? 'bg-[#a3aac0] text-white cursor-default shadow-none'
+                    : 'bg-[#3ab0e2] hover:bg-sky-400 text-white cursor-pointer disabled:opacity-60'
+                }`}
+              >
+                {generating ? 'Generando...' : 'Generar reporte'}
+              </button>
+
+              {reportGenerated && (
+                <button
+                  onClick={handleReset}
+                  className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-6 py-2 shadow-sm rounded text-sm transition-colors cursor-pointer font-medium"
+                >
+                  Reiniciar
+                </button>
+              )}
+            </div>
+
+            {/* Búsqueda directa por folio — alternativa a "Generar reporte":
+                desaparece en cuanto hay un reporte generado (por fecha o por
+                folio) y vuelve a aparecer al Reiniciar. */}
+            {!reportGenerated && (
+              <div className="flex items-center border border-gray-300 rounded overflow-hidden bg-white w-48 focus-within:border-[#3ab0e2] transition-colors">
+                <input
+                  type="text"
+                  placeholder="Folio"
+                  value={folioSearch}
+                  onChange={(e) => setFolioSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearchByFolio(); }}
+                  className="flex-1 min-w-0 h-9 px-4 outline-none text-gray-700 bg-transparent"
+                />
+                <button
+                  onClick={handleSearchByFolio}
+                  disabled={generating}
+                  title="Buscar por folio"
+                  className="flex items-center justify-center h-9 bg-[#3ab0e2] hover:bg-sky-400 text-white px-3 transition-colors cursor-pointer disabled:opacity-60 shrink-0"
+                >
+                  <Search size={18} />
+                </button>
+              </div>
+            )}
 
             {reportGenerated && (
               <div className="flex flex-col text-sm text-gray-800 gap-3 mt-4 font-medium">

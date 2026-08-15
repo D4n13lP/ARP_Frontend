@@ -6,10 +6,11 @@ import { createMetricsSlice, type MetricsSlice } from './metricsSlice'
 import { createProductSlice, type ProductSlice } from './productSlice'
 import { createUserSlice, type UserSlice } from './userSlice'
 import { createPermissionsSlice, type PermissionsSlice } from './permissionsSlice'
+import { createOrdersReportSlice, type OrdersReportSlice } from './ordersReportSlice'
 // ... otros imports de slices
 
 // Combinamos todos los tipos de los Slices
-type StoreState = AuthSlice & InventorySlice & MetricsSlice & ProductSlice & UserSlice & PermissionsSlice
+type StoreState = AuthSlice & InventorySlice & MetricsSlice & ProductSlice & UserSlice & PermissionsSlice & OrdersReportSlice
 
 export const useAppStore = create<StoreState>()(devtools((...a) => ({
   ...createAuthSlice(...a),
@@ -18,5 +19,6 @@ export const useAppStore = create<StoreState>()(devtools((...a) => ({
   ...createProductSlice(...a),
   ...createUserSlice(...a),
   ...createPermissionsSlice(...a),
+  ...createOrdersReportSlice(...a),
   // ... esparce los otros slices aquí
 })))

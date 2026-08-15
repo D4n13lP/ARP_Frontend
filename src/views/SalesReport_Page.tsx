@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Receipt } from 'lucide-react';
+import { TrendingUp, Receipt, Search } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTransactions, getTransactionById } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
@@ -17,6 +17,10 @@ export default function SalesReport_Page() {
   const [viewState, setViewState] = useState<'form' | 'table' | 'sellers' | 'detail'>('form');
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState('Todos');
   const [generating, setGenerating] = useState(false);
+  // Búsqueda directa por folio (alternativa a elegir un rango de fechas) —
+  // igual que en OrdersReports_Page: desaparece en cuanto hay un reporte
+  // generado y vuelve a aparecer al Reiniciar.
+  const [folioSearch, setFolioSearch] = useState('');
 
   // Ventas del periodo ya generado (filtradas por fecha y vendedor).
   const [sales, setSales] = useState<Transaction[]>([]);
@@ -94,6 +98,31 @@ export default function SalesReport_Page() {
     setIsReporteDia(false);
     setVendedorSeleccionado('Todos');
     setSales([]);
+    setFolioSearch('');
+  };
+
+  // Búsqueda directa por folio: genera la misma tabla que "Generar reporte"
+  // pero con solo las filas cuyo folio coincida con lo escrito (no exige
+  // rango de fechas ni vendedor). Coincidencia parcial e insensible a
+  // mayúsculas, igual que en OrdersReports_Page.
+  const handleSearchByFolio = async () => {
+    const query = folioSearch.trim();
+    if (!query) {
+      alert('Ingresa un folio para buscar.');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const all = await getTransactions({ transType: 'sale', includePayments: true });
+      const encontradas = all.filter((sale) => sale.folio?.toLowerCase().includes(query.toLowerCase()));
+      setSales(encontradas);
+      setViewState('table');
+    } catch (error) {
+      alert(getErrorMessage(error, 'No se pudo buscar la venta.'));
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleViewDetail = async (transactionID: string) => {
@@ -279,10 +308,10 @@ export default function SalesReport_Page() {
 
         {/* CONTENEDOR FECHAS Y BOTONES — en celular, tanto "table" (Ver
             vendedores/Reiniciar) como "sellers" (Regresar) se apilan: primero
-            las fechas y abajo el/los botón(es); desde md+ se mantiene intacta
-            la fila original (fechas a la izquierda, botones a la derecha) en
-            ambos casos. "form" no se toca. */}
-        <div className={`w-full flex ${viewState === 'table' || viewState === 'sellers' ? 'flex-col items-center gap-6 md:flex-row md:justify-between md:items-center md:px-10 md:max-w-4xl' : 'flex-col items-center gap-6'}`}>
+            las fechas y abajo el/los botón(es); desde md+ quedan en fila,
+            ambos bloques centrados como conjunto (ya no repartidos a los
+            extremos). "form" no se toca. */}
+        <div className={`w-full flex ${viewState === 'table' || viewState === 'sellers' ? 'flex-col items-center gap-6 md:flex-row md:justify-center md:items-center md:gap-16' : 'flex-col items-center gap-6'}`}>
 
           <div className="flex flex-col gap-6">
             <div className="flex items-center gap-6">
@@ -354,14 +383,37 @@ export default function SalesReport_Page() {
               </select>
             </div>
 
-            <div className="flex justify-center pt-10 w-full mb-10">
+            <div className="flex justify-center pt-10 w-full">
               <button
                 onClick={handleGenerateReport}
                 disabled={generating}
-                className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-8 py-2 rounded shadow transition-colors font-medium cursor-pointer disabled:opacity-60"
+                className="bg-[#3ab0e2] hover:bg-sky-400 text-white px-8 py-2 rounded shadow transition-colors font-medium cursor-pointer disabled:opacity-60 w-48"
               >
                 {generating ? 'Generando...' : 'Generar reporte'}
               </button>
+            </div>
+
+            {/* Búsqueda directa por folio — alternativa a "Generar reporte":
+                mismo tamaño y estilo fusionado que en OrdersReports_Page. */}
+            <div className="flex justify-center pt-4 w-full mb-10">
+              <div className="flex items-center border border-gray-300 rounded overflow-hidden bg-white w-48 focus-within:border-[#3ab0e2] transition-colors">
+                <input
+                  type="text"
+                  placeholder="Folio"
+                  value={folioSearch}
+                  onChange={(e) => setFolioSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearchByFolio(); }}
+                  className="flex-1 min-w-0 h-9 px-4 outline-none text-gray-700 bg-transparent"
+                />
+                <button
+                  onClick={handleSearchByFolio}
+                  disabled={generating}
+                  title="Buscar por folio"
+                  className="flex items-center justify-center h-9 bg-[#3ab0e2] hover:bg-sky-400 text-white px-3 transition-colors cursor-pointer disabled:opacity-60 shrink-0"
+                >
+                  <Search size={18} />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -453,7 +505,7 @@ export default function SalesReport_Page() {
 
         {/* SUMA DEL PERIODO — se muestra en ambas versiones */}
         {viewState === 'table' && (
-          <div className="w-full flex justify-end mt-6 pr-4 px-2">
+          <div className="w-full flex justify-center mt-6 px-2">
             <div className="flex gap-4 items-center">
               <span className="text-gray-700 font-medium text-lg">Total de ventas del periodo:</span>
               <span className="text-xl font-semibold text-gray-800">
