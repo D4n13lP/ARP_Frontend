@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Settings2, Printer, Receipt, ArrowLeft } from 'lucide-react';
+import { Settings2, Printer, Receipt, ReceiptText, ArrowLeft } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTicketConfig } from '../api/ticketConfig';
 import type { TicketConfig } from '../types';
@@ -123,6 +123,10 @@ const formatMoney = (v: number) => `$ ${v.toLocaleString('en-US', { minimumFract
 // que sincronizar ese reseteo con un efecto cada vez que cambia `data`.
 export default function TicketPrintModal({ data, onClose }: TicketPrintModalProps) {
   const [view, setView] = useState<PrintView>('menu');
+  // Si es true, el área imprimible oculta las columnas "Precio"/"Importe" de
+  // los artículos (ver handlePrintNoPrices) — se resetea después de cada
+  // impresión para que "Imprimir ticket" vuelva a salir completo.
+  const [printWithoutPrices, setPrintWithoutPrices] = useState(false);
   const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(loadPrinterConfig);
   const [ticketConfig, setTicketConfig] = useState<TicketConfig>(FALLBACK_TICKET_CONFIG);
   // Precarga "Entregado" con el importe exacto (cambio en $0.00 por defecto,
@@ -148,6 +152,18 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
   // el selector de impresora (incluye "Guardar como PDF").
   const handlePrint = () => {
     window.print();
+  };
+
+  // A diferencia de handlePrint, primero hay que dejar que React vuelva a
+  // pintar el área imprimible con printWithoutPrices=true (window.print() es
+  // síncrono y bloquea el hilo mientras el diálogo está abierto, así que si
+  // se llama en el mismo tick el DOM todavía tendría las columnas de precio).
+  const handlePrintNoPrices = () => {
+    setPrintWithoutPrices(true);
+    requestAnimationFrame(() => {
+      window.print();
+      setPrintWithoutPrices(false);
+    });
   };
 
   const fechaStr = data.fecha.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Mexico_City' });
@@ -207,6 +223,13 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
                 >
                   <Receipt className="w-4 h-4 shrink-0" />
                   Imprimir ticket
+                </button>
+                <button
+                  onClick={handlePrintNoPrices}
+                  className="flex items-center gap-3 border-2 border-[#3ab0e2] hover:bg-sky-50 text-[#3ab0e2] rounded-lg py-2.5 px-4 text-sm font-medium transition-colors cursor-pointer"
+                >
+                  <ReceiptText className="w-4 h-4 shrink-0" />
+                  Imprimir Ticket (Sin precios)
                 </button>
               </div>
 
@@ -324,8 +347,12 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
             <tr>
               <th style={{ textAlign: 'left' }}>{ticketConfig.lblCantidad}</th>
               <th style={{ textAlign: 'left' }}>{ticketConfig.lblDescripcion}</th>
-              <th style={{ textAlign: 'right' }}>{ticketConfig.lblPrecio}</th>
-              <th style={{ textAlign: 'right' }}>{ticketConfig.lblImporte}</th>
+              {!printWithoutPrices && (
+                <>
+                  <th style={{ textAlign: 'right' }}>{ticketConfig.lblPrecio}</th>
+                  <th style={{ textAlign: 'right' }}>{ticketConfig.lblImporte}</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -333,19 +360,27 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
               <tr key={i}>
                 <td>{item.cantidad}</td>
                 <td style={{ textAlign: 'left' }}>{item.nombre}</td>
-                <td style={{ textAlign: 'right' }}>{formatMoney(item.precio)}</td>
-                <td style={{ textAlign: 'right' }}>{formatMoney(item.importe)}</td>
+                {!printWithoutPrices && (
+                  <>
+                    <td style={{ textAlign: 'right' }}>{formatMoney(item.precio)}</td>
+                    <td style={{ textAlign: 'right' }}>{formatMoney(item.importe)}</td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginTop: '8px' }}>
-          <div>{ticketConfig.lblSubtotal} {formatMoney(data.subtotal)}</div>
-          <div>{ticketConfig.lblDescuento} {formatMoney(data.descuento)}</div>
-          <div>{ticketConfig.lblCostoEnvio} {formatMoney(data.costoEnvio)}</div>
-          <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblTotal} {formatMoney(data.total)}</div>
-          {(data.tipo === 'pedido' || data.tipo === 'abono') && (
+          {!printWithoutPrices && (
+            <>
+              <div>{ticketConfig.lblSubtotal} {formatMoney(data.subtotal)}</div>
+              <div>{ticketConfig.lblDescuento} {formatMoney(data.descuento)}</div>
+              <div>{ticketConfig.lblCostoEnvio} {formatMoney(data.costoEnvio)}</div>
+              <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblTotal} {formatMoney(data.total)}</div>
+            </>
+          )}
+          {!printWithoutPrices && (data.tipo === 'pedido' || data.tipo === 'abono') && (
             <>
               <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblAnticipo} {formatMoney(data.anticipo || 0)}</div>
               <div style={{ fontWeight: 'bold' }}>{ticketConfig.lblRestante} {formatMoney(data.restante || 0)}</div>
@@ -359,17 +394,25 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
           <thead>
             <tr>
               <th style={{ textAlign: 'left' }}>{ticketConfig.lblTipoPago}</th>
-              <th style={{ textAlign: 'right' }}>{ticketConfig.lblTotal}</th>
-              <th style={{ textAlign: 'right' }}>{ticketConfig.lblEntregado}</th>
-              <th style={{ textAlign: 'right' }}>{ticketConfig.lblCambio}</th>
+              {!printWithoutPrices && (
+                <>
+                  <th style={{ textAlign: 'right' }}>{ticketConfig.lblTotal}</th>
+                  <th style={{ textAlign: 'right' }}>{ticketConfig.lblEntregado}</th>
+                  <th style={{ textAlign: 'right' }}>{ticketConfig.lblCambio}</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
             <tr>
               <td style={{ textAlign: 'left' }}>{data.tipoPago}</td>
-              <td style={{ textAlign: 'right' }}>{formatMoney(data.totalPago)}</td>
-              <td style={{ textAlign: 'right' }}>{formatMoney(entregadoNum)}</td>
-              <td style={{ textAlign: 'right' }}>{formatMoney(cambioNum)}</td>
+              {!printWithoutPrices && (
+                <>
+                  <td style={{ textAlign: 'right' }}>{formatMoney(data.totalPago)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatMoney(entregadoNum)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatMoney(cambioNum)}</td>
+                </>
+              )}
             </tr>
           </tbody>
         </table>

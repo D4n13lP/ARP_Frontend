@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Receipt, Search } from 'lucide-react';
+import { TrendingUp, Receipt, Search, Printer } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { getTransactions, getTransactionById } from '../api/transactions';
 import { getErrorMessage } from '../utils/errorMessage';
-import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getClienteNombre, formatMoney } from '../utils/orderDisplay';
+import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getClienteNombre, formatMoney, buildTicketDataFromTransaction } from '../utils/orderDisplay';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TicketPrintModal, { type TicketData } from '../components/TicketPrintModal';
 import type { Transaction } from '../types';
 
 export default function SalesReport_Page() {
@@ -33,6 +34,7 @@ export default function SalesReport_Page() {
   // no trae renglones/pagos, solo lo necesario para la tabla).
   const [selectedSale, setSelectedSale] = useState<Transaction | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
 
   // Al montar, se cargan todas las ventas para armar la lista de vendedores
   // del selector (independiente del periodo que se vaya a reportar).
@@ -142,6 +144,14 @@ export default function SalesReport_Page() {
     setViewState('sellers');
   };
 
+  // Reimprime el ticket original de la venta seleccionada — se reconstruye
+  // a partir de lo que ya trae selectedSale, sin volver a pedirle nada al
+  // backend (ver buildTicketDataFromTransaction).
+  const handleReprintTicket = () => {
+    if (!selectedSale) return;
+    setTicketData(buildTicketDataFromTransaction(selectedSale, 'venta'));
+  };
+
   // Forma de pago de la venta (se pide con includePayments=true): efectivo,
   // o transferencia/tarjeta con el alias de la cuenta destino si aplica.
   const getFormaPago = (sale: Transaction) => {
@@ -200,6 +210,15 @@ export default function SalesReport_Page() {
         <main className="flex-1 w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-10 mt-6">
           {/* Columna Izquierda: Información */}
           <div className="flex flex-col gap-5 text-sm md:text-base text-gray-800 w-full md:w-1/3">
+            <div className="flex justify-end md:justify-start">
+              <button
+                onClick={handleReprintTicket}
+                className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer"
+              >
+                <Printer size={16} />
+                Reimprimir ticket
+              </button>
+            </div>
             <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Folio:</span> <span>{selectedSale.folio}</span></div>
             <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Fecha de orden:</span> <span>{formatDateOnly(selectedSale.transactionDate)}</span></div>
             <div className="flex justify-between md:justify-start md:gap-4"><span className="font-medium w-36">Fecha de entrega:</span> <span>{formatDeliveryDate(selectedSale)}</span></div>
@@ -271,6 +290,8 @@ export default function SalesReport_Page() {
           </div>
         </main>
         )}
+
+        <TicketPrintModal key={ticketData?.folio ?? 'closed'} data={ticketData} onClose={() => setTicketData(null)} />
       </div>
     );
   }

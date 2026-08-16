@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Receipt } from 'lucide-react';
+import { Receipt, Printer } from 'lucide-react';
 import logoEmpresa from '../assets/logo_empresa.jpg';
 import { useAppStore } from '../stores/useAppStore';
 import { getTransactionById, updateTransactionStatus, addPayment } from '../api/transactions';
 import { getDestAccounts } from '../api/destAccounts';
 import { getErrorMessage } from '../utils/errorMessage';
-import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getImporteACuenta, formatMoney } from '../utils/orderDisplay';
+import { formatDateOnly, formatDeliveryDate, getVendedorName, getRepartidorName, getLugarEntrega, getImporteACuenta, formatMoney, buildTicketDataFromTransaction } from '../utils/orderDisplay';
 import { toLocalDateOnly } from '../utils/localDate';
 import TicketPrintModal, { type TicketData } from '../components/TicketPrintModal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -127,6 +127,14 @@ export default function OrderDetail_Page() {
     }
   };
 
+  // Reimprime el ticket original del pedido (no el de un abono) — se
+  // reconstruye a partir de lo que ya está cargado en "order", sin volver a
+  // pedirle nada al backend (ver buildTicketDataFromTransaction).
+  const handleReprintTicket = () => {
+    if (!order) return;
+    setTicketData(buildTicketDataFromTransaction(order, 'pedido'));
+  };
+
   const handleSave = async () => {
     if (!order) return;
     if (deliveryStatus === 'completed' && order.outstandingAmount > 0) {
@@ -195,6 +203,15 @@ export default function OrderDetail_Page() {
 
         {/* Left Column: Display Information */}
         <div className="flex-1 flex flex-col gap-3">
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={handleReprintTicket}
+              className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer"
+            >
+              <Printer size={16} />
+              Reimprimir ticket
+            </button>
+          </div>
           <div className="grid grid-cols-[160px_1fr] gap-4 mb-2">
             <span className="text-gray-800 font-medium">Folio:</span>
             <span className="text-gray-600">{order.folio}</span>
