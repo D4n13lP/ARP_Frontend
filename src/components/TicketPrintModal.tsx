@@ -454,15 +454,23 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
                en blanco que deja el margen superior del rollo — @page
                margin:0 no basta porque parte de ese espacio lo agrega la
                propia impresora/driver, no el navegador. */
-            top: -3mm;
+            top: -12mm;
             left: 0;
             width: ${PAPER_WIDTH_MM[printerConfig.paperWidth]};
+            /* box-sizing: border-box es clave aquí — sin esto, el padding se
+               suma AL ANCHO declarado (77mm/58mm queda solo para el
+               contenido) y la caja termina más ancha que la página misma,
+               empujando/recortando todo hacia la derecha y dejando la
+               impresión descuadrada. Con border-box, width YA incluye el
+               padding, así que la caja ocupa exactamente el ancho de la
+               página sin importar cuánto padding tenga.  */
+            box-sizing: border-box;
             /* padding-left más grande a propósito: el cabezal de la
                impresora térmica tiene una franja muerta a la izquierda que
                no imprime nada (por eso salía cortado el borde izquierdo del
                texto) — este padding recorre todo el contenido hacia la
                derecha para esquivarla. */
-            padding: 0 4px 4px 3mm;
+            padding: 0 0 4px 3mm;
           }
           @page {
             size: ${PAPER_WIDTH_MM[printerConfig.paperWidth]} auto;
