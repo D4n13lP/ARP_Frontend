@@ -62,13 +62,16 @@ interface PrinterConfig {
 const STORAGE_KEY = 'arp_ticket_print_config';
 const DEFAULT_PRINTER_CONFIG: PrinterConfig = { paperWidth: '80mm', font: 'A', columnMode: 'standard' };
 
-// El ancho de impresión REAL no es el nominal de la opción: el rollo físico
-// de "80mm" mide 77mm de ancho (confirmado en la impresora real) — imprimir
-// a 80mm de ancho cortaba el margen derecho del ticket. La opción sigue
-// llamándose "80mm" en el selector (es como se conoce el rollo), pero el
-// área imprimible usa el ancho real.
+// El ancho de impresión REAL no es el nominal de la opción, NI el ancho del
+// rollo de papel: es el ancho que el CABEZAL térmico puede tocar, que suele
+// ser más angosto que el rollo (rollo de 77mm confirmado en la impresora
+// real, pero el cabezal deja una franja muerta a cada lado). Pedirle al
+// navegador que imprima a 77mm cae parcialmente fuera de esa franja
+// imprimible y corta el texto — de ahí que reducir a 72mm (no ampliar) sea
+// lo que corrige el corte. La opción sigue llamándose "80mm" en el selector
+// (es como se conoce el rollo), pero el área imprimible usa el ancho real.
 const PAPER_WIDTH_MM: Record<PrinterConfig['paperWidth'], string> = {
-  '80mm': '77mm',
+  '80mm': '75mm',
   '58mm': '58mm',
 };
 
