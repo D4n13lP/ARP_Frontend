@@ -62,6 +62,16 @@ interface PrinterConfig {
 const STORAGE_KEY = 'arp_ticket_print_config';
 const DEFAULT_PRINTER_CONFIG: PrinterConfig = { paperWidth: '80mm', font: 'A', columnMode: 'standard' };
 
+// El ancho de impresión REAL no es el nominal de la opción: el rollo físico
+// de "80mm" mide 77mm de ancho (confirmado en la impresora real) — imprimir
+// a 80mm de ancho cortaba el margen derecho del ticket. La opción sigue
+// llamándose "80mm" en el selector (es como se conoce el rollo), pero el
+// área imprimible usa el ancho real.
+const PAPER_WIDTH_MM: Record<PrinterConfig['paperWidth'], string> = {
+  '80mm': '77mm',
+  '58mm': '58mm',
+};
+
 function loadPrinterConfig(): PrinterConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -169,7 +179,7 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
   const fechaStr = data.fecha.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Mexico_City' });
   const horaStr = data.fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
 
-  const baseFontPx = printerConfig.font === 'A' ? 12 : 10;
+  const baseFontPx = printerConfig.font === 'A' ? 14 : 12;
   const scale = printerConfig.columnMode === '42col' ? 0.85 : 1;
   const fontPx = Math.round(baseFontPx * scale);
 
@@ -314,7 +324,7 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
         style={{ fontFamily: 'monospace', fontSize: `${fontPx}px`, lineHeight: 1.4 }}
       >
         <div className="flex flex-col items-center text-center gap-1 pb-2">
-          <img src={logoEmpresa} alt="Logo" style={{ width: '70px', height: 'auto' }} />
+          <img src={logoEmpresa} alt="Logo" style={{ width: '140px', height: 'auto' }} />
           <div className="font-bold" style={{ fontSize: '1.15em' }}>{ticketConfig.empresaNombre}</div>
           <div>{ticketConfig.empresaDireccion}</div>
           <div>Tel. {ticketConfig.empresaTelefonos}</div>
@@ -440,13 +450,17 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
           #ticket-print-area, #ticket-print-area * { visibility: visible; }
           #ticket-print-area {
             position: absolute;
-            top: 0;
+            /* Negativo a propósito: sube la impresión para recortar el hueco
+               en blanco que deja el margen superior del rollo — @page
+               margin:0 no basta porque parte de ese espacio lo agrega la
+               propia impresora/driver, no el navegador. */
+            top: -3mm;
             left: 0;
-            width: ${printerConfig.paperWidth};
-            padding: 4px;
+            width: ${PAPER_WIDTH_MM[printerConfig.paperWidth]};
+            padding: 0 4px 4px;
           }
           @page {
-            size: ${printerConfig.paperWidth} auto;
+            size: ${PAPER_WIDTH_MM[printerConfig.paperWidth]} auto;
             margin: 0;
           }
         }
