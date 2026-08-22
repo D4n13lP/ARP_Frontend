@@ -457,7 +457,12 @@ export default function TicketPrintModal({ data, onClose }: TicketPrintModalProp
             top: -3mm;
             left: 0;
             width: ${PAPER_WIDTH_MM[printerConfig.paperWidth]};
-            padding: 0 4px 4px;
+            /* padding-left más grande a propósito: el cabezal de la
+               impresora térmica tiene una franja muerta a la izquierda que
+               no imprime nada (por eso salía cortado el borde izquierdo del
+               texto) — este padding recorre todo el contenido hacia la
+               derecha para esquivarla. */
+            padding: 0 4px 4px 3mm;
           }
           @page {
             size: ${PAPER_WIDTH_MM[printerConfig.paperWidth]} auto;
