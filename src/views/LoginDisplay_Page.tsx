@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import logoEmpresa from '../assets/logo_empresa.jpg';
-import piramideSol from '../assets/piramide_sol_monocromatico.svg';
+import fuentePerfecta from '../assets/fuente_perfecta_630F00.svg';
 import { login } from '../api/auth';
 import { useAppStore } from '../stores/useAppStore';
 import { getErrorMessage } from '../utils/errorMessage';
@@ -34,18 +34,53 @@ export default function LoginDisplay_Page() {
   };
 
   return (
-    <div className="min-h-screen bg-[#e2694b] flex items-center justify-center p-6 animate-fade-in overflow-hidden">
+    <div className="min-h-screen bg-linear-to-t from-[#6c1b1b] to-[#e35336] to-40% flex items-center justify-center p-6 relative animate-fade-in overflow-hidden">
       <div className="relative flex items-center">
 
-        {/* Pirámide decorativa: detrás de la tarjeta, alineada con su borde superior.
-            Ancho fluido (vw) para que crezca con la pantalla hasta un tope de 800px
-            (el doble del tamaño original); se oculta por completo si no hay espacio
-            a los lados (pantallas angostas, por debajo de lg). */}
+        {/* Fuente decorativa: absoluta, centrada verticalmente en la
+            PANTALLA (no en la tarjeta) — top-1/2 en vez de anclarla a un
+            borde. Esto funciona porque el contenedor que la envuelve
+            (.relative.flex.items-center, el mismo que envuelve a la
+            tarjeta) ya está centrado verticalmente dentro del viewport
+            completo (el contenedor exterior es min-h-screen flex
+            items-center) — o sea que el centro vertical de ESTE contenedor
+            coincide exactamente con el centro vertical de la pantalla,
+            sin importar la altura de la tarjeta.
+            -translate-y-[58.4%] en vez de -translate-y-1/2: el dibujo
+            dentro del SVG NO está centrado en su propio lienzo (viewBox
+            0 0 446 829) — el trazo va de y=200 a y=768 (medido de las
+            coordenadas del path), con punto medio real en y=484, mientras
+            que el centro geométrico del lienzo es y=414.5. Esa diferencia
+            (69.5px, un 8.4% de 829) es lo que hacía que, aunque la CAJA del
+            <img> sí quedaba centrada con -translate-y-1/2, el DIBUJO se
+            viera corrido hacia abajo. 50% + 8.4% = 58.4% corrige ese
+            desfase para que el dibujo (no solo la caja) quede centrado.
+            Al centrarse (en vez de anclarse arriba o abajo) el sobrante se
+            reparte mitad arriba, mitad abajo, así que con el tope de altura
+            de abajo tampoco se sale de la pantalla ni agrega scroll. Queda
+            fuera del flujo (no afecta el centrado de la tarjeta ni agrega
+            scroll por sí misma). A diferencia de la pirámide (ancha y
+            angosto (446x829) — dimensionarlo por ANCHO como antes lo hacía
+            enorme de alto y se salía muy por debajo de la tarjeta/pantalla;
+            por eso aquí se dimensiona por ALTO, con ancho automático.
+            clamp(180px, 120vh, min(191%, 80vh)): 120vh es a propósito mucho
+            más grande que el tope, así que en la enorme mayoría de
+            pantallas de escritorio/laptop el clamp topa ahí, mostrando
+            SIEMPRE el tamaño máximo (191% de la altura de la tarjeta, o
+            80% del alto de la ventana, lo que sea menor — así nunca se sale
+            de la pantalla). Solo en ventanas realmente bajas 120vh cae por
+            debajo de ese tope y ahí sí empieza a achicarse de verdad, hasta
+            un piso de 180px para que no desaparezca. Sin z-index propio
+            (queda por debajo del z-10 de la tarjeta): el formulario siempre
+            se ve completo encima, la fuente solo se asoma donde no se
+            encima con la tarjeta. left-82.5 queda bien en tablet (lg); en
+            pantallas de escritorio más anchas (xl+) se recorre más a la
+            derecha para no dejar tanto espacio vacío. */}
         <img
-          src={piramideSol}
+          src={fuentePerfecta}
           alt=""
           aria-hidden="true"
-          className="hidden lg:block pointer-events-none select-none absolute top-0 left-82.5 w-[38vw] max-w-200 -z-10"
+          className="hidden lg:block pointer-events-none select-none absolute top-1/2 -translate-y-[58.4%] left-82.5 xl:left-100 2xl:left-115 h-[clamp(180px,120vh,min(191%,80vh))] w-auto"
         />
 
         <div className="relative z-10 w-full max-w-sm bg-[#f1e8d6] rounded-3xl shadow-2xl px-8 pt-8 pb-10 flex flex-col items-center">

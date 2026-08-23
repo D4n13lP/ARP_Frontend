@@ -326,7 +326,7 @@ export default function RegisterOrder_Page() {
           <>
             {/* Buscador de productos */}
             <div className="flex w-full mb-12">
-              <div className="flex items-end gap-8 mx-auto xl:mx-0 w-full xl:w-auto xl:mr-auto justify-start pl-8 xl:pl-48">
+              <div className="flex items-end gap-8 mx-auto">
                 <div className="flex flex-col w-56 md:w-64">
                   <div className="flex h-10 border border-gray-300 rounded shadow-sm overflow-hidden">
                     <input

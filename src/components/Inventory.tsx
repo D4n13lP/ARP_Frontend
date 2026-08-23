@@ -119,10 +119,34 @@ export default function Inventory() {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
+  // Filtro por fecha de las columnas "Fecha de ajuste"/"Fecha de
+  // transferencia" — se abre al hacer click en el TÍTULO de esa columna
+  // (las flechas de orden, aparte, siguen ordenando como siempre). Un solo
+  // estado basta: nunca hay más de una columna de fecha visible a la vez
+  // (ajustes y transferencias son pestañas distintas).
+  const [dateFilter, setDateFilter] = useState<'all' | 'week' | 'month'>('all');
+  const [dateFilterMenuOpen, setDateFilterMenuOpen] = useState(false);
+  const dateFilterMenuRef = useRef<HTMLDivElement>(null);
+  const DATE_FILTER_COLUMN_KEYS = ['fechaAjuste', 'fechaTransferencia'];
+
   useEffect(() => {
     setSortKey(null);
     setSortDir('asc');
+    setDateFilter('all');
+    setDateFilterMenuOpen(false);
   }, [tabActiva]);
+
+  // Cierra el desplegable del filtro de fecha al hacer click fuera de él.
+  useEffect(() => {
+    if (!dateFilterMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (dateFilterMenuRef.current && !dateFilterMenuRef.current.contains(e.target as Node)) {
+        setDateFilterMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dateFilterMenuOpen]);
 
   function handleSort(key: string) {
     if (key === 'opciones') return; // esa columna no tiene datos que ordenar
@@ -343,17 +367,27 @@ export default function Inventory() {
     }
   }
 
+  // Filtro por fecha (Semana/Mes/Todo) — se aplica ANTES de ordenar. "Semana"
+  // y "Mes" son ventanas relativas a ahora mismo (últimos 7/30 días), no un
+  // rango de calendario fijo.
+  const adjustmentsFiltrados = useMemo(() => {
+    if (dateFilter === 'all') return adjustments;
+    const days = dateFilter === 'week' ? 7 : 30;
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return adjustments.filter((a) => a.adjustmentDate && new Date(a.adjustmentDate).getTime() >= cutoff);
+  }, [adjustments, dateFilter]);
+
   const adjustmentsOrdenados = useMemo(() => {
-    if (!sortKey) return adjustments;
+    if (!sortKey) return adjustmentsFiltrados;
     const dir = sortDir === 'asc' ? 1 : -1;
-    return [...adjustments].sort((a, b) => {
+    return [...adjustmentsFiltrados].sort((a, b) => {
       const va = getAdjustmentSortValue(a, sortKey);
       const vb = getAdjustmentSortValue(b, sortKey);
       if (va < vb) return -1 * dir;
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [adjustments, sortKey, sortDir]);
+  }, [adjustmentsFiltrados, sortKey, sortDir]);
 
   const tabs = [
     { id: 'general', label: 'Listado general del Stock' },
@@ -687,13 +721,15 @@ export default function Inventory() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#f2f2f2] border-b border-gray-300">
-                  {columnas.map((col) => (
+                  {columnas.map((col) => {
+                    const isDateCol = DATE_FILTER_COLUMN_KEYS.includes(col.key);
+                    return (
                     <th
                       key={col.key}
-                      onClick={() => handleSort(col.key)}
-                      title={col.key === 'opciones' ? undefined : 'Ordenar'}
+                      onClick={col.key === 'opciones' || isDateCol ? undefined : () => handleSort(col.key)}
+                      title={col.key === 'opciones' || isDateCol ? undefined : 'Ordenar'}
                       className={`sticky top-0 z-10 bg-[#f2f2f2] py-2.5 text-sm font-bold border-r border-b border-gray-300 last:border-r-0 ${
-                        col.key === 'opciones' ? '' : 'cursor-pointer select-none hover:bg-gray-200/70'
+                        col.key === 'opciones' || isDateCol ? '' : 'cursor-pointer select-none hover:bg-gray-200/70'
                       } ${
                         ['disponibleAntes', 'pendienteAntes', 'cantidadAjustada'].includes(col.key) ? 'px-2 w-28' : 'px-4'
                       }`}
@@ -703,16 +739,65 @@ export default function Inventory() {
                           ? 'justify-center gap-1'
                           : 'justify-between'
                       }`}>
-                        {col.label}
-                        {col.key !== 'opciones' && (
-                          <div className="flex flex-col scale-75">
-                            <ChevronUp size={12} className={`-mb-1 ${sortKey === col.key && sortDir === 'asc' ? 'text-sky-600' : 'text-gray-400'}`} />
-                            <ChevronDown size={12} className={sortKey === col.key && sortDir === 'desc' ? 'text-sky-600' : 'text-gray-400'} />
+                        {isDateCol ? (
+                          // El título abre el filtro por fecha (Semana/Mes/Todo)
+                          // — ya NO ordena; el orden se movió al ícono de flechas.
+                          <div ref={dateFilterMenuRef} className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setDateFilterMenuOpen((o) => !o)}
+                              title="Filtrar por fecha"
+                              className="cursor-pointer select-none hover:underline"
+                            >
+                              {col.label}
+                              {dateFilter !== 'all' && (
+                                <span className="ml-1 text-sky-600">({dateFilter === 'week' ? 'Semana' : 'Mes'})</span>
+                              )}
+                            </button>
+                            {dateFilterMenuOpen && (
+                              <div className="absolute left-0 top-full z-20 mt-1 w-32 bg-white border border-gray-300 rounded shadow-lg overflow-hidden text-left normal-case font-normal">
+                                {([
+                                  { key: 'week', label: 'Semana' },
+                                  { key: 'month', label: 'Mes' },
+                                  { key: 'all', label: 'Todo' },
+                                ] as const).map((opt) => (
+                                  <button
+                                    key={opt.key}
+                                    type="button"
+                                    onClick={() => { setDateFilter(opt.key); setDateFilterMenuOpen(false); }}
+                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-sky-50 cursor-pointer ${dateFilter === opt.key ? 'text-sky-600 font-semibold' : 'text-gray-700'}`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
+                        ) : col.label}
+                        {col.key !== 'opciones' && (
+                          isDateCol ? (
+                            // Flechas: aquí vive ahora la función de ordenar que
+                            // antes tenía toda la columna.
+                            <button
+                              type="button"
+                              onClick={() => handleSort(col.key)}
+                              title="Ordenar"
+                              className="flex flex-col scale-75 cursor-pointer"
+                            >
+                              <ChevronUp size={12} className={`-mb-1 ${sortKey === col.key && sortDir === 'asc' ? 'text-sky-600' : 'text-gray-400'}`} />
+                              <ChevronDown size={12} className={sortKey === col.key && sortDir === 'desc' ? 'text-sky-600' : 'text-gray-400'} />
+                            </button>
+                          ) : (
+                            <div className="flex flex-col scale-75">
+                              <ChevronUp size={12} className={`-mb-1 ${sortKey === col.key && sortDir === 'asc' ? 'text-sky-600' : 'text-gray-400'}`} />
+                              <ChevronDown size={12} className={sortKey === col.key && sortDir === 'desc' ? 'text-sky-600' : 'text-gray-400'} />
+                            </div>
+                          )
                         )}
                       </div>
                     </th>
-                  ))}
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
