@@ -40,7 +40,8 @@ export default function ProductSearchTable({ products, amounts, onAmountChange, 
         <span className="ml-auto font-bold text-gray-800 mr-20">Producto encontrado</span>
       </div>
 
-      <div className="overflow-x-auto border border-gray-300 rounded mb-4">
+      {/* Tabla — escritorio/tablet (>= md), intacta */}
+      <div className="hidden md:block overflow-x-auto border border-gray-300 rounded mb-4">
         <table className="w-full text-sm text-center">
           <thead className="bg-gray-100 text-gray-700 border-b border-gray-300">
             <tr>
@@ -90,6 +91,62 @@ export default function ProductSearchTable({ products, amounts, onAmountChange, 
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Tarjetas — celulares (< md). Mismo diseño que Inventory.tsx, mismos
+          datos/handlers que la tabla de arriba, nada nuevo. */}
+      <div className="md:hidden flex flex-col gap-3 mb-4">
+        {products.length === 0 ? (
+          <p className="text-center text-gray-400 italic text-sm py-6">
+            No se encontraron productos con existencia en ningún almacén.
+          </p>
+        ) : (
+          products.map((product) => (
+            <div key={product.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+              <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0">
+                  <h4 className="font-bold text-gray-900 text-base leading-tight truncate">{product.nombre}</h4>
+                  <span className="text-xs text-gray-500">{product.categoria || 'Sin categoría'}</span>
+                </div>
+                <span className={`shrink-0 px-2 py-0.5 rounded text-xs font-semibold ${product.cantidadDisponible === 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  {product.cantidadDisponible > 0 ? 'Disponible' : 'Agotado'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Almacén</span>
+                  <span className="font-semibold text-gray-800">{product.almacen || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Cantidad disponible</span>
+                  <span className="font-semibold text-gray-800">{product.cantidadDisponible.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Precio unidad</span>
+                  <span className="font-semibold text-gray-800">${product.precio.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block mb-0.5">Unidad</span>
+                  <span className="font-semibold text-gray-800">{product.unidad || '—'}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-gray-500 block mb-0.5">Cantidad a agregar</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={product.cantidadDisponible}
+                    value={!amounts[product.id] ? '' : amounts[product.id]}
+                    onChange={(e) => onAmountChange(product.id, e.target.value, product.cantidadDisponible)}
+                    placeholder="0"
+                    disabled={product.cantidadDisponible === 0}
+                    className="w-full border border-gray-300 rounded text-center py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="flex justify-end gap-3">
