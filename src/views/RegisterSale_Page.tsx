@@ -214,10 +214,12 @@ export default function RegisterSale_Page() {
         
         {viewStep === 'search' ? (
           <>
-            {/* Buscador de productos con campos más pequeños */}
+            {/* Buscador de productos con campos más pequeños. En móvil (< sm)
+                se apilan en columna a lo ancho completo — en fila no cabían
+                los dos campos en una pantalla angosta. */}
             <div className="flex w-full mb-12">
-              <div className="flex items-end gap-8 mx-auto">
-                <div className="flex flex-col w-56 md:w-64">
+              <div className="flex flex-col items-stretch gap-4 w-full max-w-sm sm:max-w-none sm:flex-row sm:items-end sm:gap-8 sm:w-auto mx-auto">
+                <div className="flex flex-col w-full sm:w-56 md:w-64">
                   <div className="flex h-10 border border-gray-300 rounded shadow-sm overflow-hidden">
                     <input
                       type="text"
@@ -236,7 +238,7 @@ export default function RegisterSale_Page() {
                   </div>
                 </div>
                 
-                <div className="flex flex-col w-64 md:w-80">
+                <div className="flex flex-col w-full sm:w-64 md:w-80">
                   <div className="flex h-10 border border-gray-300 rounded shadow-sm overflow-hidden">
                     <input
                       type="text"
